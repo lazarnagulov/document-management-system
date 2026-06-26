@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"bitbucket.org/HyperEther/document-management-system/internal/auth"
 	"bitbucket.org/HyperEther/document-management-system/internal/config"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/db"
 	"go.uber.org/zap"
@@ -21,6 +22,9 @@ func setupDependencies(cfg *config.AppConfig, log *zap.Logger) (*Application, er
 	if err != nil {
 		return nil, fmt.Errorf("database connection failed: %w", err)
 	}
+
+	authHandler := auth.NewHandler()
+	r.RegisterRoutes(authHandler)
 
 	return &Application{
 		DB:     database,
