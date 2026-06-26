@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"bitbucket.org/HyperEther/document-management-system/internal/config"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/logger"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
@@ -30,19 +31,22 @@ func main() {
 	}
 	defer log.Sync()
 
-	app, err := setupDependencies(log)
+	cfg := config.Load(log)
+	cfg.Env = env
+
+	app, err := setupDependencies(cfg, log)
 	if err != nil {
 		log.Fatal("Failed to setup dependencies", zap.Error(err))
 	}
-	// defer app.DB.Close()
+	defer app.DB.Close()
 
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + cfg.Port,
 		Handler: app.Router,
 	}
 
 	log.Info("starting server",
-		zap.String("port", "8080"),
+		zap.String("port", cfg.Port),
 		zap.String("environment", env),
 	)
 
