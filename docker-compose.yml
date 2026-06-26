@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+
+  postgres_db:
+    image: pgvector/pgvector:pg16
+    container_name: dms_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin-sifra}
+      POSTGRES_DB: ${DB_NAME:-baza}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-baza}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: dms_minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER:-dms_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-admin-sifra}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  backend:
+    build:
+      context: ./backend
+    container_name: dms_backend
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: postgres_db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:-admin-sifra}
+      DB_NAME: ${DB_NAME:-baza}
+
+      MINIO_ENDPOINT: minio:9000
+      MINIO_USER: ${MINIO_USER:-dms_admin}
+      MINIO_PASSWORD: ${MINIO_PASSWORD:-admin-sifra}
+
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: dms_frontend
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    
+    depends_on:
+      - backend
+      
+volumes:
+  postgres_data:
+  minio_data:
