@@ -40,6 +40,9 @@ Thumbs.db
 *.exe
 *.war
 
+docker/nginx/certs/
+.env
+
 # Large media files
 *.mp4
 *.tiff
