@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/pagination"
 	"github.com/google/uuid"
 )
 
@@ -389,5 +390,36 @@ func TestValidateFile_RejectedTypes(t *testing.T) {
 				t.Errorf("expected ErrUnsupportedType for %s, got %v", tc.filename, err)
 			}
 		})
+	}
+}
+
+func TestService_List_Success(t *testing.T) {
+	userID := uuid.New()
+	repo := &mockRepository{
+		listFn: func(ctx context.Context, uid uuid.UUID, page pagination.Page) ([]*Document, error) {
+			return []*Document{
+				{ID: uuid.New(), UserID: uid, Name: "a.pdf"},
+				{ID: uuid.New(), UserID: uid, Name: "b.txt"},
+			}, nil
+		},
+		countFn: func(ctx context.Context, uid uuid.UUID) (int, error) {
+			return 2, nil
+		},
+	}
+
+	page := pagination.New(1, 15)
+	result, err := NewService(repo, &mockStorage{}).List(context.Background(), userID, page)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(result.Content) != 2 {
+		t.Errorf("expected 2 docs, got %d", len(result.Content))
+	}
+	if result.TotalElements != 2 {
+		t.Errorf("expected total 2, got %d", result.TotalElements)
+	}
+	if result.TotalPages != 1 {
+		t.Errorf("expected 1 page, got %d", result.TotalPages)
 	}
 }

@@ -6,12 +6,14 @@ import (
 	"io"
 	"mime/multipart"
 
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/pagination"
 	"github.com/google/uuid"
 )
 
 type mockService struct {
 	createFn   func(ctx context.Context, userID uuid.UUID, header *multipart.FileHeader, file io.Reader) (*Response, error)
 	getFn      func(ctx context.Context, userID, docID uuid.UUID) (*Response, error)
+	listFn     func(ctx context.Context, userID uuid.UUID, page pagination.Page) (*pagination.Response[*Response], error)
 	updateFn   func(ctx context.Context, userID, docID uuid.UUID, req *UpdateRequest) (*Response, error)
 	deleteFn   func(ctx context.Context, userID, docID uuid.UUID) error
 	downloadFn func(ctx context.Context, userID, docID uuid.UUID) (*Document, io.ReadCloser, error)
@@ -29,6 +31,13 @@ func (m *mockService) Get(ctx context.Context, userID, docID uuid.UUID) (*Respon
 		return nil, fmt.Errorf("getFn not set")
 	}
 	return m.getFn(ctx, userID, docID)
+}
+
+func (m *mockService) List(ctx context.Context, userID uuid.UUID, page pagination.Page) (*pagination.Response[*Response], error) {
+	if m.listFn == nil {
+		return nil, fmt.Errorf("listFn not set")
+	}
+	return m.listFn(ctx, userID, page)
 }
 
 func (m *mockService) Update(ctx context.Context, userID, docID uuid.UUID, req *UpdateRequest) (*Response, error) {
@@ -56,6 +65,8 @@ type mockRepository struct {
 	createFn  func(ctx context.Context, doc *Document) error
 	getByIDFn func(ctx context.Context, id uuid.UUID) (*Document, error)
 	updateFn  func(ctx context.Context, doc *Document) error
+	listFn    func(ctx context.Context, userID uuid.UUID, page pagination.Page) ([]*Document, error)
+	countFn   func(ctx context.Context, userID uuid.UUID) (int, error)
 	deleteFn  func(ctx context.Context, id uuid.UUID) error
 }
 
@@ -85,6 +96,20 @@ func (m *mockRepository) Delete(ctx context.Context, id uuid.UUID) error {
 		return fmt.Errorf("deleteFn not set")
 	}
 	return m.deleteFn(ctx, id)
+}
+
+func (m *mockRepository) ListByUserID(ctx context.Context, userID uuid.UUID, page pagination.Page) ([]*Document, error) {
+	if m.listFn == nil {
+		return nil, fmt.Errorf("listFn not set")
+	}
+	return m.listFn(ctx, userID, page)
+}
+
+func (m *mockRepository) CountByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
+	if m.countFn == nil {
+		return 0, fmt.Errorf("countFn not set")
+	}
+	return m.countFn(ctx, userID)
 }
 
 type mockStorage struct {

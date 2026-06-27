@@ -6,12 +6,15 @@ import (
 	"errors"
 	"fmt"
 
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/pagination"
 	"github.com/google/uuid"
 )
 
 type Repository interface {
 	Create(ctx context.Context, doc *Document) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Document, error)
+	ListByUserID(ctx context.Context, userID uuid.UUID, page pagination.Page) ([]*Document, error)
+	CountByUserID(ctx context.Context, userID uuid.UUID) (int, error)
 	Update(ctx context.Context, doc *Document) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -90,4 +93,43 @@ func (r *repository) Delete(ctx context.Context, id uuid.UUID) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (r *repository) ListByUserID(ctx context.Context, userID uuid.UUID, page pagination.Page) ([]*Document, error) {
+	const q = `
+		SELECT id, user_id, name, content_type, size, storage_key, created_at, updated_at
+		FROM documents WHERE user_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3`
+
+	rows, err := r.db.QueryContext(ctx, q, userID, page.Size, page.Offset())
+	if err != nil {
+		return nil, fmt.Errorf("list documents: %w", err)
+	}
+	defer rows.Close()
+
+	var docs []*Document
+	for rows.Next() {
+		d := &Document{}
+		if err := rows.Scan(
+			&d.ID, &d.UserID, &d.Name, &d.ContentType,
+			&d.Size, &d.StorageKey, &d.CreatedAt, &d.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan document: %w", err)
+		}
+		docs = append(docs, d)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list documents rows: %w", err)
+	}
+	return docs, nil
+}
+
+func (r *repository) CountByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
+	const q = `SELECT COUNT(*) FROM documents WHERE user_id = $1`
+	var total int
+	if err := r.db.QueryRowContext(ctx, q, userID).Scan(&total); err != nil {
+		return 0, fmt.Errorf("count documents: %w", err)
+	}
+	return total, nil
 }

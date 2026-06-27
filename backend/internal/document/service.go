@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"time"
 
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/pagination"
 	"bitbucket.org/HyperEther/document-management-system/internal/storage"
 	"github.com/google/uuid"
 )
@@ -14,6 +15,7 @@ import (
 type Service interface {
 	Create(ctx context.Context, userID uuid.UUID, header *multipart.FileHeader, file io.Reader) (*Response, error)
 	Get(ctx context.Context, userID, docID uuid.UUID) (*Response, error)
+	List(ctx context.Context, userID uuid.UUID, page pagination.Page) (*pagination.Response[*Response], error)
 	Update(ctx context.Context, userID, docID uuid.UUID, req *UpdateRequest) (*Response, error)
 	Delete(ctx context.Context, userID, docID uuid.UUID) error
 	Download(ctx context.Context, userID, docID uuid.UUID) (*Document, io.ReadCloser, error)
@@ -119,6 +121,21 @@ func (s *service) Download(ctx context.Context, userID, docID uuid.UUID) (*Docum
 	}
 
 	return doc, reader, nil
+}
+
+func (s *service) List(ctx context.Context, userID uuid.UUID, page pagination.Page) (*pagination.Response[*Response], error) {
+	docs, err := s.repo.ListByUserID(ctx, userID, page)
+	if err != nil {
+		return nil, fmt.Errorf("list documents: %w", err)
+	}
+
+	total, err := s.repo.CountByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("count documents: %w", err)
+	}
+
+	resp := pagination.NewResponse(ToResponseList(docs), total, page)
+	return &resp, nil
 }
 
 func storageKey(userID, fileID uuid.UUID, ext string) string {

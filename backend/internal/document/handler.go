@@ -7,8 +7,8 @@ import (
 
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/httputil"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/middleware"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/pagination"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type Handler struct {
@@ -49,10 +49,6 @@ func (h *Handler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
-func (h *Handler) List(c *gin.Context) {
-
-}
-
 func (h *Handler) Get(c *gin.Context) {
 	claims, ok := middleware.ClaimsFromContext(c)
 	if !ok {
@@ -60,9 +56,8 @@ func (h *Handler) Get(c *gin.Context) {
 		return
 	}
 
-	docID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httputil.WriteError(c, http.StatusBadRequest, "invalid document id")
+	docID, ok := httputil.ParamUUID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -82,9 +77,8 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
-	docID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httputil.WriteError(c, http.StatusBadRequest, "invalid document id")
+	docID, ok := httputil.ParamUUID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -110,9 +104,8 @@ func (h *Handler) Download(c *gin.Context) {
 		return
 	}
 
-	docID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httputil.WriteError(c, http.StatusBadRequest, "invalid document id")
+	docID, ok := httputil.ParamUUID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -135,9 +128,8 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 
-	docID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httputil.WriteError(c, http.StatusBadRequest, "invalid document id")
+	docID, ok := httputil.ParamUUID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -147,6 +139,27 @@ func (h *Handler) Delete(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+func (h *Handler) List(c *gin.Context) {
+	claims, ok := middleware.ClaimsFromContext(c)
+	if !ok {
+		httputil.WriteError(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	page := pagination.New(
+		httputil.QueryInt(c, "page", 1),
+		httputil.QueryInt(c, "size", pagination.DefaultSize),
+	)
+
+	docs, err := h.svc.List(c.Request.Context(), claims.UserID, page)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, docs)
 }
 
 func (h *Handler) handleError(c *gin.Context, err error) {
