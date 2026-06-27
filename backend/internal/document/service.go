@@ -96,13 +96,14 @@ func (s *service) Delete(ctx context.Context, userID, docID uuid.UUID) error {
 		return ErrForbidden
 	}
 
-	if err := s.storage.Delete(ctx, doc.StorageKey); err != nil {
-		return fmt.Errorf("delete file: %w", err)
-	}
-
 	if err := s.repo.Delete(ctx, docID); err != nil {
 		return fmt.Errorf("delete document record: %w", err)
 	}
+
+	if err := s.storage.Delete(ctx, doc.StorageKey); err != nil {
+		return fmt.Errorf("delete file (orphaned): %w", err)
+	}
+
 	return nil
 }
 
