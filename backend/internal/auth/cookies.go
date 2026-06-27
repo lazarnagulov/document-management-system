@@ -17,10 +17,10 @@ func setAuthCookies(c *gin.Context, accessToken, refreshToken string) {
 
 	c.SetCookie(refreshTokenCookie, refreshToken,
 		int(token.RefreshTokenDuration.Seconds()),
-		"/auth/refresh", "", true, true)
+		"/api/v1/auth/refresh", "", true, true)
 }
 
 func clearAuthCookies(c *gin.Context) {
 	c.SetCookie(AccessTokenCookie, "", -1, "/", "", true, true)
-	c.SetCookie(refreshTokenCookie, "", -1, "/auth/refresh", "", true, true)
+	c.SetCookie(refreshTokenCookie, "", -1, "/api/v1/auth/refresh", "", true, true)
 }

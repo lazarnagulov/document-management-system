@@ -142,8 +142,8 @@ func TestHandler_Login_Success(t *testing.T) {
 			if !c.HttpOnly {
 				t.Error("refresh token cookie should be HttpOnly")
 			}
-			if c.Path != "/auth/refresh" {
-				t.Errorf("refresh cookie path should be /auth/refresh, got %s", c.Path)
+			if c.Path != "/api/v1/auth/refresh" {
+				t.Errorf("refresh cookie path should be /api/v1/auth/refresh, got %s", c.Path)
 			}
 		}
 	}

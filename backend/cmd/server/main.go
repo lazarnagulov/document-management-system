@@ -15,7 +15,7 @@ import (
 
 func main() {
 	cfg := config.Load()
-	log, err := logger.New(cfg.Env)
+	log, err := logger.New(cfg.Env, cfg.AppRoot)
 	if err != nil {
 		panic("failed to create logger: " + err.Error())
 	}

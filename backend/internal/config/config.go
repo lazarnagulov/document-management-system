@@ -9,20 +9,22 @@ import (
 )
 
 type AppConfig struct {
-	Env    string
-	Port   string
-	ApiURL string
-	DB     db.Config
-	Auth   token.Config
+	Env     string
+	Port    string
+	ApiURL  string
+	AppRoot string
+	DB      db.Config
+	Auth    token.Config
 }
 
 func Load() *AppConfig {
 	godotenv.Load() // best-effort, intentionally ignored
 	env := getEnv("APP_ENV", "development")
 	return &AppConfig{
-		Env:    env,
-		Port:   getEnv("PORT", "8080"),
-		ApiURL: getEnv("API_URL", "http://localhost:8080/api/v1"),
+		Env:     env,
+		Port:    getEnv("PORT", "8080"),
+		AppRoot: getEnv("APP_ROOT", ""),
+		ApiURL:  getEnv("API_URL", "http://localhost:8080/api/v1"),
 		Auth: token.Config{
 			AccessSecret:  getEnv("JWT_ACCESS_SECRET", ""),
 			RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),

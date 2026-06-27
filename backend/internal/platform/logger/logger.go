@@ -10,13 +10,8 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-func resolveLogPath(env string) (string, error) {
-	root := os.Getenv("APP_ROOT")
-	if root == "" {
-		return "", fmt.Errorf("APP_ROOT env variable not set")
-	}
-
-	logPath := filepath.Join(root, "logs", "server", "server.log")
+func resolveLogPath(env, appRoot string) (string, error) {
+	logPath := filepath.Join(appRoot, "logs", "server", "server.log")
 	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
 		return "", fmt.Errorf("failed to create log directory: %w", err)
 	}
@@ -24,8 +19,8 @@ func resolveLogPath(env string) (string, error) {
 	return logPath, nil
 }
 
-func New(env string) (*zap.Logger, error) {
-	logPath, err := resolveLogPath(env)
+func New(env, appRoot string) (*zap.Logger, error) {
+	logPath, err := resolveLogPath(env, appRoot)
 	if err != nil {
 		return nil, err
 	}
