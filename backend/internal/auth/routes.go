@@ -8,6 +8,12 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 		auth.POST("/login", h.Login)
 		auth.POST("/logout", h.Logout)
 		auth.POST("/register", h.Register)
-		auth.GET("/me", h.Me)
+		auth.POST("/refresh", h.Refresh)
+	}
+
+	protected := rg.Group("/")
+	protected.Use(h.auth)
+	{
+		protected.GET("/auth/me", h.Me)
 	}
 }

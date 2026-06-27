@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/db"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/token"
 	"github.com/joho/godotenv"
 )
 
@@ -12,6 +13,7 @@ type AppConfig struct {
 	Port   string
 	ApiURL string
 	DB     db.Config
+	Auth   token.Config
 }
 
 func Load() *AppConfig {
@@ -21,6 +23,10 @@ func Load() *AppConfig {
 		Env:    env,
 		Port:   getEnv("PORT", "8080"),
 		ApiURL: getEnv("API_URL", "http://localhost:8080/api/v1"),
+		Auth: token.Config{
+			AccessSecret:  getEnv("JWT_ACCESS_SECRET", ""),
+			RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
+		},
 		DB: db.Config{
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),

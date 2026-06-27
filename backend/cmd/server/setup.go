@@ -2,12 +2,14 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"bitbucket.org/HyperEther/document-management-system/internal/auth"
 	"bitbucket.org/HyperEther/document-management-system/internal/config"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/db"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/middleware"
 	"go.uber.org/zap"
 )
 
@@ -17,6 +19,10 @@ type Application struct {
 }
 
 func setupDependencies(cfg *config.AppConfig, log *zap.Logger) (*Application, error) {
+	if cfg.Auth.AccessSecret == "" || cfg.Auth.RefreshSecret == "" {
+		return nil, errors.New("JWT secrets must be set")
+	}
+
 	r := NewRouter("production")
 	database, err := db.NewPostgresConnection(cfg.DB)
 	if err != nil {
@@ -24,9 +30,11 @@ func setupDependencies(cfg *config.AppConfig, log *zap.Logger) (*Application, er
 	}
 	log.Info("Successfully connected to the database!")
 
+	authMw := middleware.Authenticate(cfg.Auth)
+
 	authRepo := auth.NewRepository(database)
-	authService := auth.NewService(authRepo)
-	authHandler := auth.NewHandler(authService)
+	authService := auth.NewService(authRepo, cfg.Auth)
+	authHandler := auth.NewHandler(authService, authMw)
 	r.RegisterRoutes(authHandler)
 
 	return &Application{
