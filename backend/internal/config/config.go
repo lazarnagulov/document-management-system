@@ -5,6 +5,7 @@ import (
 
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/db"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/token"
+	"bitbucket.org/HyperEther/document-management-system/internal/storage"
 	"github.com/joho/godotenv"
 )
 
@@ -14,6 +15,7 @@ type AppConfig struct {
 	ApiURL  string
 	AppRoot string
 	DB      db.Config
+	Minio   storage.MinioConfig
 	Auth    token.Config
 }
 
@@ -28,6 +30,13 @@ func Load() *AppConfig {
 		Auth: token.Config{
 			AccessSecret:  getEnv("JWT_ACCESS_SECRET", ""),
 			RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
+		},
+		Minio: storage.MinioConfig{
+			Endpoint:   getEnv("MINIO_ENDPOINT", "localhost:9000"),
+			AccessKey:  getEnv("MINIO_ACCESS_KEY", "oblak_admin"),
+			SecretKey:  getEnv("MINIO_SECRET_KEY", "oblak_super_secret_password"),
+			BucketName: "oblak-artifacts",
+			UseSSL:     getEnv("MINIO_USE_SSL", "") == "true",
 		},
 		DB: db.Config{
 			Host:     getEnv("DB_HOST", "localhost"),
