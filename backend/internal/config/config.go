@@ -32,10 +32,10 @@ func Load() *AppConfig {
 			RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
 		},
 		Minio: storage.MinioConfig{
+			AccessKey:  getEnv("MINIO_ACCESS_KEY", "dms_admin"),
+			SecretKey:  getEnv("MINIO_SECRET_KEY", "admin-sifra"),
 			Endpoint:   getEnv("MINIO_ENDPOINT", "localhost:9000"),
-			AccessKey:  getEnv("MINIO_ACCESS_KEY", "oblak_admin"),
-			SecretKey:  getEnv("MINIO_SECRET_KEY", "oblak_super_secret_password"),
-			BucketName: "oblak-artifacts",
+			BucketName: getEnv("MINIO_BUCKET", "documents"),
 			UseSSL:     getEnv("MINIO_USE_SSL", "") == "true",
 		},
 		DB: db.Config{
