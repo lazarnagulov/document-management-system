@@ -3,9 +3,11 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"errors"
 )
 
 type Repository interface {
+	GetByEmail(ctx context.Context, email string) (*User, error)
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 	Create(ctx context.Context, user *User) error
 }
@@ -29,6 +31,21 @@ func (r *repository) Create(ctx context.Context, user *User) error {
 		user.Password,
 	)
 	return err
+}
+
+func (r *repository) GetByEmail(ctx context.Context, email string) (*User, error) {
+	const q = `
+        SELECT id, email, password, created_at, updated_at
+        FROM users WHERE email = $1`
+
+	u := &User{}
+	err := r.db.QueryRowContext(ctx, q, email).Scan(
+		&u.ID, &u.Email, &u.Password, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return u, err
 }
 
 func (r *repository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
