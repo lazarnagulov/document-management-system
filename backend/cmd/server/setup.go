@@ -18,12 +18,15 @@ type Application struct {
 
 func setupDependencies(cfg *config.AppConfig, log *zap.Logger) (*Application, error) {
 	r := NewRouter("production")
-	database, err := db.NewPostgresConnection(cfg.DB, log)
+	database, err := db.NewPostgresConnection(cfg.DB)
 	if err != nil {
 		return nil, fmt.Errorf("database connection failed: %w", err)
 	}
+	log.Info("Successfully connected to the database!")
 
-	authHandler := auth.NewHandler()
+	authRepo := auth.NewRepository(database)
+	authService := auth.NewService(authRepo)
+	authHandler := auth.NewHandler(authService)
 	r.RegisterRoutes(authHandler)
 
 	return &Application{

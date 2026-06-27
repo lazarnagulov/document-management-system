@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,32 +10,20 @@ import (
 
 	"bitbucket.org/HyperEther/document-management-system/internal/config"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/logger"
-	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		fmt.Println("warning: .env file not found")
-	}
-
-	env := os.Getenv("APP_ENV")
-	if env == "" {
-		env = "development"
-	}
-
-	log, err := logger.New(env)
+	cfg := config.Load()
+	log, err := logger.New(cfg.Env)
 	if err != nil {
-		panic("Failed to create logger: " + err.Error())
+		panic("failed to create logger: " + err.Error())
 	}
 	defer log.Sync()
 
-	cfg := config.Load(log)
-	cfg.Env = env
-
 	app, err := setupDependencies(cfg, log)
 	if err != nil {
-		log.Fatal("Failed to setup dependencies", zap.Error(err))
+		log.Fatal("failed to setup dependencies", zap.Error(err))
 	}
 	defer app.DB.Close()
 
@@ -47,7 +34,7 @@ func main() {
 
 	log.Info("starting server",
 		zap.String("port", cfg.Port),
-		zap.String("environment", env),
+		zap.String("environment", cfg.Env),
 	)
 
 	go func() {

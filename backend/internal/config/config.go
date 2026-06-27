@@ -5,7 +5,6 @@ import (
 
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/db"
 	"github.com/joho/godotenv"
-	"go.uber.org/zap"
 )
 
 type AppConfig struct {
@@ -15,13 +14,8 @@ type AppConfig struct {
 	DB     db.Config
 }
 
-func Load(log *zap.Logger) *AppConfig {
-	if err := godotenv.Load(); err != nil {
-		log.Warn("No .env file found, falling back to system environment variables")
-	} else {
-		log.Info(".env file successfully loaded")
-	}
-
+func Load() *AppConfig {
+	godotenv.Load() // best-effort, intentionally ignored
 	env := getEnv("APP_ENV", "development")
 	return &AppConfig{
 		Env:    env,

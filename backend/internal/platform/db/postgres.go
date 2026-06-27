@@ -6,7 +6,6 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	"go.uber.org/zap"
 )
 
 type Config struct {
@@ -17,7 +16,7 @@ type Config struct {
 	DBName   string
 }
 
-func NewPostgresConnection(cfg Config, log *zap.Logger) (*sql.DB, error) {
+func NewPostgresConnection(cfg Config) (*sql.DB, error) {
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName)
 
@@ -32,7 +31,6 @@ func NewPostgresConnection(cfg Config, log *zap.Logger) (*sql.DB, error) {
 
 	var pingErr error
 	if pingErr = db.Ping(); pingErr == nil {
-		log.Info("Successfully connected to the database!")
 		return db, nil
 	}
 
