@@ -55,8 +55,8 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-access_secret}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-refresh_secret}
       MINIO_ENDPOINT: minio:9000
-      MINIO_USER: ${MINIO_USER:-dms_admin}
-      MINIO_PASSWORD: ${MINIO_PASSWORD:-admin-sifra}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-dms_admin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-admin-sifra}
     depends_on:
       postgres_db:
         condition: service_healthy
