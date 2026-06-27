@@ -6,7 +6,7 @@ import (
 )
 
 type Storage interface {
-	Upload(ctx context.Context, key string, reader io.Reader) error
+	Upload(ctx context.Context, key string, reader io.Reader, contentType string) error
 	Download(ctx context.Context, key string) (io.ReadCloser, error)
 	Delete(ctx context.Context, key string) error
 }

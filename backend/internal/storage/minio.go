@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/minio/minio-go/pkg/credentials"
 	"github.com/minio/minio-go/v7"
-	"go.uber.org/zap"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 type MinioConfig struct {
@@ -23,21 +22,12 @@ type minioStorage struct {
 	bucketName string
 }
 
-func NewMinioStorage(cfg MinioConfig, log *zap.Logger) (Storage, error) {
-	log.Info("Connecting to MinIO",
-		zap.String("endpoint", cfg.Endpoint),
-		zap.String("bucket", cfg.BucketName),
-		zap.Bool("useSSL", cfg.UseSSL),
-	)
-
+func NewMinioStorage(cfg MinioConfig) (Storage, error) {
 	minioClient, err := minio.New(cfg.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
 		Secure: cfg.UseSSL,
 	})
 	if err != nil {
-		log.Error("Failed to initialize MinIO client",
-			zap.Error(err),
-		)
 		return nil, fmt.Errorf("Failed to initialize minio client: %w", err)
 	}
 
@@ -53,34 +43,17 @@ func NewMinioStorage(cfg MinioConfig, log *zap.Logger) (Storage, error) {
 	}
 
 	if !exists {
-		log.Info("creating MinIO bucket",
-			zap.String("bucket", cfg.BucketName),
-		)
 		err = minioClient.MakeBucket(ctx, cfg.BucketName, minio.MakeBucketOptions{})
 		if err != nil {
-			log.Error("failed to create MinIO bucket",
-				zap.String("bucket", cfg.BucketName),
-				zap.Error(err),
-			)
 			return nil, fmt.Errorf("failed to create minio bucket: %w", err)
 		}
-
-		log.Info("MinIO bucket created",
-			zap.String("bucket", cfg.BucketName),
-		)
 	}
-
-	log.Info("Successfully connected to MinIO",
-		zap.String("endpoint", cfg.Endpoint),
-		zap.String("bucket", cfg.BucketName),
-	)
-
 	return storage, nil
 }
 
-func (m *minioStorage) Upload(ctx context.Context, key string, reader io.Reader) error {
+func (m *minioStorage) Upload(ctx context.Context, key string, reader io.Reader, contentType string) error {
 	_, err := m.client.PutObject(ctx, m.bucketName, key, reader, -1, minio.PutObjectOptions{
-		ContentType: "application/zip",
+		ContentType: contentType,
 	})
 	if err != nil {
 		return fmt.Errorf("minio upload error for key %s: %w", key, err)

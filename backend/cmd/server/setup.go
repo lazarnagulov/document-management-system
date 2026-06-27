@@ -8,6 +8,7 @@ import (
 
 	"bitbucket.org/HyperEther/document-management-system/internal/auth"
 	"bitbucket.org/HyperEther/document-management-system/internal/config"
+	"bitbucket.org/HyperEther/document-management-system/internal/document"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/db"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/middleware"
 	"bitbucket.org/HyperEther/document-management-system/internal/storage"
@@ -26,10 +27,15 @@ func setupDependencies(cfg *config.AppConfig, log *zap.Logger) (*Application, er
 
 	r := NewRouter("production")
 
-	_, err := storage.NewMinioStorage(cfg.Minio, log)
+	minio, err := storage.NewMinioStorage(cfg.Minio)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create minio storage: %w", err)
 	}
+
+	log.Info("Successfully connected to MinIO",
+		zap.String("endpoint", cfg.Minio.Endpoint),
+		zap.String("bucket", cfg.Minio.BucketName),
+	)
 
 	database, err := db.NewPostgresConnection(cfg.DB)
 	if err != nil {
@@ -42,7 +48,12 @@ func setupDependencies(cfg *config.AppConfig, log *zap.Logger) (*Application, er
 	authRepo := auth.NewRepository(database)
 	authService := auth.NewService(authRepo, cfg.Auth)
 	authHandler := auth.NewHandler(authService, authMw)
-	r.RegisterRoutes(authHandler)
+
+	documentRepo := document.NewRepository(database)
+	documentService := document.NewService(documentRepo, minio)
+	documentHandler := document.NewHandler(documentService, authMw)
+
+	r.RegisterRoutes(authHandler, documentHandler)
 
 	return &Application{
 		DB:     database,
