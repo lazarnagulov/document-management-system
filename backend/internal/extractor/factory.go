@@ -8,10 +8,10 @@ type Factory struct {
 	txt  *TXTExtractor
 }
 
-func NewFactory(extractorURL string) *Factory {
+func NewFactory(cfg Config) *Factory {
 	return &Factory{
-		pdf:  NewPDFExtractor(extractorURL),
-		docx: NewDOCXExtractor(),
+		pdf:  NewPDFExtractor(cfg.PDFURL),
+		docx: NewDOCXExtractor(cfg.DOCXURL),
 		txt:  NewTXTExtractor(),
 	}
 }

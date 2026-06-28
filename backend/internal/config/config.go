@@ -34,7 +34,8 @@ func Load() *AppConfig {
 			RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
 		},
 		Extractor: extractor.Config{
-			URL: getEnv("EXTRACTOR_URL", "http://extractor:8000"),
+			PDFURL:  getEnv("PDF_EXTRACTOR_URL", "http://pdf-extractor:8000"),
+			DOCXURL: getEnv("DOCX_EXTRACTOR_URL", "http://docx-extractor:3000"),
 		},
 		Minio: storage.MinioConfig{
 			AccessKey:  getEnv("MINIO_ACCESS_KEY", "dms_admin"),

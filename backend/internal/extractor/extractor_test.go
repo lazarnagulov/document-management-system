@@ -144,3 +144,51 @@ func TestPDFExtractor_ContextCancelled(t *testing.T) {
 		t.Error("expected error on cancelled context, got nil")
 	}
 }
+
+func TestFactory_ReturnsCorrectExtractor(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer server.Close()
+
+	factory := NewFactory(Config{PDFURL: server.URL})
+
+	cases := []struct {
+		contentType string
+		expectType  string
+	}{
+		{"application/pdf", "*extractor.PDFExtractor"},
+		{"application/vnd.openxmlformats-officedocument.wordprocessingml.document", "*extractor.DOCXExtractor"},
+		{"text/plain", "*extractor.TXTExtractor"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.contentType, func(t *testing.T) {
+			ext, err := factory.For(tc.contentType)
+			if err != nil {
+				t.Fatalf("expected no error for %s, got %v", tc.contentType, err)
+			}
+			if ext == nil {
+				t.Errorf("expected extractor for %s, got nil", tc.contentType)
+			}
+		})
+	}
+}
+
+func TestFactory_UnsupportedType(t *testing.T) {
+	factory := NewFactory(Config{})
+
+	cases := []string{
+		"image/png",
+		"application/zip",
+		"text/html",
+		"application/octet-stream",
+	}
+
+	for _, ct := range cases {
+		t.Run(ct, func(t *testing.T) {
+			_, err := factory.For(ct)
+			if err == nil {
+				t.Errorf("expected error for unsupported type %s, got nil", ct)
+			}
+		})
+	}
+}

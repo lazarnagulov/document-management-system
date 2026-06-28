@@ -6,12 +6,13 @@ import (
 )
 
 type DOCXExtractor struct {
+	remoteExtractor
 }
 
-func NewDOCXExtractor() *DOCXExtractor {
-	return &DOCXExtractor{}
+func NewDOCXExtractor(url string) *DOCXExtractor {
+	return &DOCXExtractor{newRemoteExtractor(url+"/extract", "document.docx")}
 }
 
-func (e *DOCXExtractor) Extract(_ context.Context, content io.Reader) (string, error) {
-	return "", nil
+func (e *DOCXExtractor) Extract(ctx context.Context, content io.Reader) (string, error) {
+	return e.extract(ctx, content)
 }

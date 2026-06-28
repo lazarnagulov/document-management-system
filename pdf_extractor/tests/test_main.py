@@ -72,3 +72,11 @@ def test_extract_invalid_pdf_signature():
     )
 
     assert response.status_code == 400
+
+def test_extract_too_large():
+    big_content = b"%PDF" + b"0" * (21 * 1024 * 1024)
+    response = client.post(
+        "/extract",
+        files={"file": ("big.pdf", big_content, "application/pdf")},
+    )
+    assert response.status_code == 413

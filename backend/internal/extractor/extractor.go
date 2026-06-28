@@ -6,7 +6,8 @@ import (
 )
 
 type Config struct {
-	URL string
+	PDFURL  string
+	DOCXURL string
 }
 
 type Extractor interface {

@@ -89,12 +89,20 @@ services:
     depends_on:
       - backend
       - frontend
-  extractor:
+  pdf_extractor:
     build:
       context: ./pdf_extractor
     container_name: dms_pdf_extractor
     expose:
       - "8000"
+    restart: always
+
+  docx-extractor:
+    build:
+      context: ./docx_extractor
+    container_name: dms_docx_extractor
+    expose:
+      - "3000"
     restart: always
 
 volumes:
