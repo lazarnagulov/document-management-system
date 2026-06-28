@@ -12,6 +12,6 @@ func NewDOCXExtractor() *DOCXExtractor {
 	return &DOCXExtractor{}
 }
 
-func (e *DOCXExtractor) Extract(ctx context.Context, content io.Reader) (string, error) {
+func (e *DOCXExtractor) Extract(_ context.Context, content io.Reader) (string, error) {
 	return "", nil
 }
