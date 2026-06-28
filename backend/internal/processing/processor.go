@@ -6,6 +6,7 @@ import (
 
 	"bitbucket.org/HyperEther/document-management-system/internal/document"
 	"bitbucket.org/HyperEther/document-management-system/internal/extractor"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/chunker"
 	"bitbucket.org/HyperEther/document-management-system/internal/storage"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -15,14 +16,22 @@ type Processor struct {
 	repo      document.Repository
 	storage   storage.Storage
 	extractor *extractor.Factory
+	chunker   *chunker.Chunker
 	log       *zap.Logger
 }
 
-func NewProcessor(repo document.Repository, storage storage.Storage, extractor *extractor.Factory, log *zap.Logger) *Processor {
+func NewProcessor(
+	repo document.Repository,
+	storage storage.Storage,
+	extractor *extractor.Factory,
+	chunker *chunker.Chunker,
+	log *zap.Logger,
+) *Processor {
 	return &Processor{
 		repo:      repo,
 		storage:   storage,
 		extractor: extractor,
+		chunker:   chunker,
 		log:       log,
 	}
 }
@@ -71,7 +80,8 @@ func (p *Processor) process(ctx context.Context, documentID uuid.UUID) error {
 		return fmt.Errorf("extract text: %w", err)
 	}
 
-	_ = text
+	chunks := p.chunker.Chunk(text)
+	_ = chunks
 
 	if err := p.repo.UpdateStatus(ctx, documentID, document.StatusReady); err != nil {
 		return fmt.Errorf("set ready status: %w", err)

@@ -11,6 +11,7 @@ import (
 	"bitbucket.org/HyperEther/document-management-system/internal/config"
 	"bitbucket.org/HyperEther/document-management-system/internal/document"
 	"bitbucket.org/HyperEther/document-management-system/internal/extractor"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/chunker"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/db"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/middleware"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/queue"
@@ -61,8 +62,9 @@ func setupDependencies(ctx context.Context, cfg *config.AppConfig, log *zap.Logg
 
 	r.RegisterRoutes(authHandler, docHandler)
 
+	chunker := chunker.Default()
 	extractorFactory := extractor.NewFactory(cfg.Extractor)
-	processor := processing.NewProcessor(docRepo, minio, extractorFactory, log)
+	processor := processing.NewProcessor(docRepo, minio, extractorFactory, chunker, log)
 	worker := processing.NewWorker(q, processor)
 	worker.Start(ctx)
 
