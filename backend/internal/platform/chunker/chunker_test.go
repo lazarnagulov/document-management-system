@@ -132,7 +132,7 @@ func TestChunk_TextWithNoSentenceBoundaries(t *testing.T) {
 		t.Fatal("expected chunks, got none")
 	}
 	for i, chunk := range chunks {
-		if len(chunk) > c.chunkSize+c.chunkOverlap {
+		if len(chunk) > c.ChunkSize()+c.ChunkOverlap() {
 			t.Errorf("chunk %d exceeds size: %d", i, len(chunk))
 		}
 	}
@@ -192,7 +192,7 @@ func TestChunk_UTF8LongWord(t *testing.T) {
 	}
 
 	for i, chunk := range chunks {
-		if utf8.RuneCountInString(chunk) > c.chunkSize+c.chunkOverlap {
+		if utf8.RuneCountInString(chunk) > c.ChunkSize()+c.ChunkOverlap() {
 			t.Fatalf("chunk %d too large: %d runes",
 				i,
 				utf8.RuneCountInString(chunk))
@@ -251,7 +251,7 @@ func TestChunk_ChunkSizeMeasuredInRunes(t *testing.T) {
 	chunks := c.Chunk(text)
 
 	for i, chunk := range chunks {
-		if utf8.RuneCountInString(chunk) > c.chunkSize+c.chunkOverlap {
+		if utf8.RuneCountInString(chunk) > c.ChunkSize()+c.ChunkOverlap() {
 			t.Fatalf(
 				"chunk %d contains %d runes",
 				i,

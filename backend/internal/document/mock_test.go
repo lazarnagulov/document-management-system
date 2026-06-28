@@ -120,6 +120,10 @@ func (m *mockRepository) CountByUserID(ctx context.Context, userID uuid.UUID) (i
 	return m.countFn(ctx, userID)
 }
 
+func (m *mockRepository) SaveChunks(ctx context.Context, chunks []*Chunk) error {
+	return nil
+}
+
 type mockStorage struct {
 	uploadFn   func(ctx context.Context, key string, reader io.Reader, contentType string) error
 	downloadFn func(ctx context.Context, key string) (io.ReadCloser, error)

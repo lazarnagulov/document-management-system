@@ -17,29 +17,43 @@ type chunkState struct {
 	length  int
 }
 
-type Chunker struct {
+type Chunker interface {
+	Chunk(text string) []string
+	ChunkSize() int
+	ChunkOverlap() int
+}
+
+type chunker struct {
 	chunkSize    int
 	chunkOverlap int
 }
 
-func New(chunkSize, chunkOverlap int) *Chunker {
+func New(chunkSize, chunkOverlap int) Chunker {
 	if chunkSize <= 0 {
 		chunkSize = DefaultChunkSize
 	}
 	if chunkOverlap <= 0 || chunkOverlap >= chunkSize {
 		chunkOverlap = DefaultChunkOverlap
 	}
-	return &Chunker{
+	return &chunker{
 		chunkSize:    chunkSize,
 		chunkOverlap: chunkOverlap,
 	}
 }
 
-func Default() *Chunker {
-	return &Chunker{chunkSize: DefaultChunkSize, chunkOverlap: DefaultChunkOverlap}
+func Default() *chunker {
+	return &chunker{chunkSize: DefaultChunkSize, chunkOverlap: DefaultChunkOverlap}
 }
 
-func (c *Chunker) Chunk(text string) []string {
+func (c *chunker) ChunkSize() int {
+	return c.chunkSize
+}
+
+func (c *chunker) ChunkOverlap() int {
+	return c.chunkOverlap
+}
+
+func (c *chunker) Chunk(text string) []string {
 	if strings.TrimSpace(text) == "" {
 		return nil
 	}
@@ -57,7 +71,7 @@ func (c *Chunker) Chunk(text string) []string {
 	return state.chunks
 }
 
-func (c *Chunker) processParagraph(state *chunkState, paragraph string) {
+func (c *chunker) processParagraph(state *chunkState, paragraph string) {
 	if c.appendText(state, paragraph, "\n\n") {
 		return
 	}
@@ -73,7 +87,7 @@ func (c *Chunker) processParagraph(state *chunkState, paragraph string) {
 	}
 }
 
-func (c *Chunker) processSentence(state *chunkState, sentence string) {
+func (c *chunker) processSentence(state *chunkState, sentence string) {
 	if c.appendText(state, sentence, " ") {
 		return
 	}
@@ -89,7 +103,7 @@ func (c *Chunker) processSentence(state *chunkState, sentence string) {
 	}
 }
 
-func (c *Chunker) processWord(state *chunkState, word string) {
+func (c *chunker) processWord(state *chunkState, word string) {
 	if c.appendText(state, word, " ") {
 		return
 	}
@@ -103,7 +117,7 @@ func (c *Chunker) processWord(state *chunkState, word string) {
 	c.splitLongWord(state, word)
 }
 
-func (c *Chunker) splitLongWord(state *chunkState, word string) {
+func (c *chunker) splitLongWord(state *chunkState, word string) {
 	runes := []rune(word)
 
 	for len(runes) > 0 {
@@ -134,7 +148,7 @@ func (c *Chunker) splitLongWord(state *chunkState, word string) {
 	}
 }
 
-func (c *Chunker) appendText(state *chunkState, text, separator string) bool {
+func (c *chunker) appendText(state *chunkState, text, separator string) bool {
 	add := utf8.RuneCountInString(text)
 
 	if state.length > 0 {
@@ -156,7 +170,7 @@ func (c *Chunker) appendText(state *chunkState, text, separator string) bool {
 	return true
 }
 
-func (c *Chunker) flush(state *chunkState) {
+func (c *chunker) flush(state *chunkState) {
 	if state.length == 0 {
 		return
 	}
@@ -171,7 +185,7 @@ func (c *Chunker) flush(state *chunkState) {
 	state.length = utf8.RuneCountInString(tail)
 }
 
-func (c *Chunker) splitParagraphs(text string) []string {
+func (c *chunker) splitParagraphs(text string) []string {
 	parts := strings.Split(text, "\n\n")
 
 	result := make([]string, 0, len(parts))
@@ -186,7 +200,7 @@ func (c *Chunker) splitParagraphs(text string) []string {
 	return result
 }
 
-func (c *Chunker) splitSentences(text string) []string {
+func (c *chunker) splitSentences(text string) []string {
 	var sentences []string
 	var current strings.Builder
 

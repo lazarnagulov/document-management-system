@@ -13,6 +13,7 @@ import (
 	"bitbucket.org/HyperEther/document-management-system/internal/extractor"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/chunker"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/db"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/embedder"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/middleware"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/queue"
 	"bitbucket.org/HyperEther/document-management-system/internal/processing"
@@ -28,6 +29,9 @@ type Application struct {
 func setupDependencies(ctx context.Context, cfg *config.AppConfig, log *zap.Logger) (*Application, error) {
 	if cfg.Auth.AccessSecret == "" || cfg.Auth.RefreshSecret == "" {
 		return nil, errors.New("JWT secrets must be set")
+	}
+	if cfg.OpenAI.APIKey == "" {
+		return nil, errors.New("OPENAI_API_KEY must be set")
 	}
 
 	r := NewRouter("production")
@@ -63,8 +67,9 @@ func setupDependencies(ctx context.Context, cfg *config.AppConfig, log *zap.Logg
 	r.RegisterRoutes(authHandler, docHandler)
 
 	chunker := chunker.Default()
+	openaiEmbedder := embedder.New(cfg.OpenAI.APIKey)
 	extractorFactory := extractor.NewFactory(cfg.Extractor)
-	processor := processing.NewProcessor(docRepo, minio, extractorFactory, chunker, log)
+	processor := processing.NewProcessor(docRepo, minio, extractorFactory, chunker, openaiEmbedder, log)
 	worker := processing.NewWorker(q, processor)
 	worker.Start(ctx)
 

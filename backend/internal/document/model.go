@@ -15,6 +15,15 @@ const (
 	StatusFailed     DocumentStatus = "FAILED"
 )
 
+type Chunk struct {
+	ID         uuid.UUID
+	DocumentID uuid.UUID
+	Content    string
+	Embedding  []float32
+	ChunkIndex int
+	CreatedAt  time.Time
+}
+
 type Document struct {
 	ID          uuid.UUID
 	UserID      uuid.UUID

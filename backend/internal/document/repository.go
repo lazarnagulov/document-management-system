@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/pagination"
 	"github.com/google/uuid"
@@ -18,6 +20,7 @@ type Repository interface {
 	Update(ctx context.Context, doc *Document) error
 	UpdateStatus(ctx context.Context, id uuid.UUID, status DocumentStatus) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	SaveChunks(ctx context.Context, chunks []*Chunk) error
 }
 
 type repository struct {
@@ -150,4 +153,44 @@ func (r *repository) CountByUserID(ctx context.Context, userID uuid.UUID) (int, 
 		return 0, fmt.Errorf("count documents: %w", err)
 	}
 	return total, nil
+}
+
+func (r *repository) SaveChunks(ctx context.Context, chunks []*Chunk) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	const q = `
+		INSERT INTO document_chunks (id, document_id, content, embedding, chunk_index, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)`
+
+	for _, chunk := range chunks {
+		if _, err := tx.ExecContext(ctx, q,
+			chunk.ID,
+			chunk.DocumentID,
+			chunk.Content,
+			formatEmbedding(chunk.Embedding),
+			chunk.ChunkIndex,
+			chunk.CreatedAt,
+		); err != nil {
+			return fmt.Errorf("insert chunk %d: %w", chunk.ChunkIndex, err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func formatEmbedding(embedding []float32) string {
+	sb := strings.Builder{}
+	sb.WriteString("[")
+	for i, v := range embedding {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString(strconv.FormatFloat(float64(v), 'f', -1, 32))
+	}
+	sb.WriteString("]")
+	return sb.String()
 }
