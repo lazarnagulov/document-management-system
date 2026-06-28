@@ -8,4 +8,5 @@ var (
 	ErrInvalidFile     = errors.New("invalid file")
 	ErrUnsupportedType = errors.New("unsupported file type")
 	ErrFileTooLarge    = errors.New("file too large")
+	ErrNotReady        = errors.New("document is not ready for querying")
 )

@@ -15,6 +15,15 @@ const (
 	StatusFailed     DocumentStatus = "FAILED"
 )
 
+type Chunk struct {
+	ID         uuid.UUID
+	DocumentID uuid.UUID
+	Content    string
+	Embedding  []float32
+	ChunkIndex int
+	CreatedAt  time.Time
+}
+
 type Document struct {
 	ID          uuid.UUID
 	UserID      uuid.UUID
@@ -43,6 +52,15 @@ type Response struct {
 	Status      DocumentStatus `json:"status"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
+}
+
+type QueryRequest struct {
+	Question string `json:"question" binding:"required"`
+}
+
+type QueryResponse struct {
+	Answer   string `json:"answer"`
+	Question string `json:"question"`
 }
 
 func ToResponse(d *Document) *Response {

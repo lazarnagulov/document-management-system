@@ -5,7 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/completer"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/pagination"
 	"github.com/google/uuid"
 )
@@ -18,6 +21,8 @@ type Repository interface {
 	Update(ctx context.Context, doc *Document) error
 	UpdateStatus(ctx context.Context, id uuid.UUID, status DocumentStatus) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	SaveChunks(ctx context.Context, chunks []*Chunk) error
+	FindSimilarChunks(ctx context.Context, documentID uuid.UUID, embedding []float32, limit int) ([]*completer.SimilarChunk, error)
 }
 
 type repository struct {
@@ -150,4 +155,66 @@ func (r *repository) CountByUserID(ctx context.Context, userID uuid.UUID) (int, 
 		return 0, fmt.Errorf("count documents: %w", err)
 	}
 	return total, nil
+}
+
+func (r *repository) SaveChunks(ctx context.Context, chunks []*Chunk) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	const q = `
+		INSERT INTO document_chunks (id, document_id, content, embedding, chunk_index, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)`
+
+	for _, chunk := range chunks {
+		if _, err := tx.ExecContext(ctx, q,
+			chunk.ID,
+			chunk.DocumentID,
+			chunk.Content,
+			formatEmbedding(chunk.Embedding),
+			chunk.ChunkIndex,
+			chunk.CreatedAt,
+		); err != nil {
+			return fmt.Errorf("insert chunk %d: %w", chunk.ChunkIndex, err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (r *repository) FindSimilarChunks(ctx context.Context, documentID uuid.UUID, embedding []float32, limit int) ([]*completer.SimilarChunk, error) {
+	const q = `
+        SELECT id, content, similarity
+        FROM match_chunks($1, $2, $3)`
+
+	rows, err := r.db.QueryContext(ctx, q, formatEmbedding(embedding), documentID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("similarity search: %w", err)
+	}
+	defer rows.Close()
+
+	var chunks []*completer.SimilarChunk
+	for rows.Next() {
+		c := &completer.SimilarChunk{}
+		if err := rows.Scan(&c.ID, &c.Content, &c.Similarity); err != nil {
+			return nil, fmt.Errorf("scan chunk: %w", err)
+		}
+		chunks = append(chunks, c)
+	}
+	return chunks, rows.Err()
+}
+
+func formatEmbedding(embedding []float32) string {
+	sb := strings.Builder{}
+	sb.WriteString("[")
+	for i, v := range embedding {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString(strconv.FormatFloat(float64(v), 'f', -1, 32))
+	}
+	sb.WriteString("]")
+	return sb.String()
 }

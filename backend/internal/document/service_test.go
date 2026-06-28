@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/completer"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/pagination"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/queue"
 	"github.com/google/uuid"
@@ -53,22 +54,21 @@ func buildFileHeader(t *testing.T, filename, contentType, content string) (*mult
 	return headers[0], f
 }
 
+func newSvc(repo *mockRepository, store *mockStorage) Service {
+	return NewService(repo, store, queue.NewMemoryQueue(100), &mockEmbedder{}, &mockCompleter{})
+}
+
 func TestService_Create_Success(t *testing.T) {
 	userID := uuid.New()
 	repo := &mockRepository{
-		createFn: func(ctx context.Context, doc *Document) error {
-			return nil
-		},
+		createFn: func(ctx context.Context, doc *Document) error { return nil },
 	}
 	store := &mockStorage{
-		uploadFn: func(ctx context.Context, key string, reader io.Reader, contentType string) error {
-			return nil
-		},
+		uploadFn: func(ctx context.Context, key string, reader io.Reader, contentType string) error { return nil },
 	}
 
 	header, file := buildFileHeader(t, "test.pdf", "application/pdf", "content")
-	svc := NewService(repo, store, queue.NewMemoryQueue(100))
-	resp, err := svc.Create(context.Background(), userID, header, file)
+	resp, err := newSvc(repo, store).Create(context.Background(), userID, header, file)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -85,11 +85,8 @@ func TestService_Create_Success(t *testing.T) {
 }
 
 func TestService_Create_UnsupportedType(t *testing.T) {
-	repo := &mockRepository{}
-	store := &mockStorage{}
-
 	header, file := buildFileHeader(t, "virus.exe", "application/octet-stream", "binary")
-	_, err := NewService(repo, store, queue.NewMemoryQueue(1000)).Create(context.Background(), uuid.New(), header, file)
+	_, err := newSvc(&mockRepository{}, &mockStorage{}).Create(context.Background(), uuid.New(), header, file)
 
 	if !errors.Is(err, ErrUnsupportedType) {
 		t.Errorf("expected ErrUnsupportedType, got %v", err)
@@ -97,11 +94,8 @@ func TestService_Create_UnsupportedType(t *testing.T) {
 }
 
 func TestService_Create_MIMEMismatch(t *testing.T) {
-	repo := &mockRepository{}
-	store := &mockStorage{}
-
 	header, file := buildFileHeader(t, "sneaky.pdf", "text/plain", "not a pdf")
-	_, err := NewService(repo, store, queue.NewMemoryQueue(1000)).Create(context.Background(), uuid.New(), header, file)
+	_, err := newSvc(&mockRepository{}, &mockStorage{}).Create(context.Background(), uuid.New(), header, file)
 
 	if !errors.Is(err, ErrUnsupportedType) {
 		t.Errorf("expected ErrUnsupportedType for MIME mismatch, got %v", err)
@@ -109,7 +103,6 @@ func TestService_Create_MIMEMismatch(t *testing.T) {
 }
 
 func TestService_Create_StorageFailure_NoOrphan(t *testing.T) {
-	// if upload fails, repo.Create should never be called
 	repoCalled := false
 	repo := &mockRepository{
 		createFn: func(ctx context.Context, doc *Document) error {
@@ -124,7 +117,7 @@ func TestService_Create_StorageFailure_NoOrphan(t *testing.T) {
 	}
 
 	header, file := buildFileHeader(t, "test.pdf", "application/pdf", "content")
-	_, err := NewService(repo, store, queue.NewMemoryQueue(1000)).Create(context.Background(), uuid.New(), header, file)
+	_, err := newSvc(repo, store).Create(context.Background(), uuid.New(), header, file)
 
 	if err == nil {
 		t.Error("expected error, got nil")
@@ -135,12 +128,9 @@ func TestService_Create_StorageFailure_NoOrphan(t *testing.T) {
 }
 
 func TestService_Create_DBFailure_CleansUpStorage(t *testing.T) {
-	// if DB insert fails after upload, storage.Delete should be called
 	deleteKey := ""
 	store := &mockStorage{
-		uploadFn: func(ctx context.Context, key string, reader io.Reader, contentType string) error {
-			return nil
-		},
+		uploadFn: func(ctx context.Context, key string, reader io.Reader, contentType string) error { return nil },
 		deleteFn: func(ctx context.Context, key string) error {
 			deleteKey = key
 			return nil
@@ -153,13 +143,41 @@ func TestService_Create_DBFailure_CleansUpStorage(t *testing.T) {
 	}
 
 	header, file := buildFileHeader(t, "test.pdf", "application/pdf", "content")
-	_, err := NewService(repo, store, queue.NewMemoryQueue(1000)).Create(context.Background(), uuid.New(), header, file)
+	_, err := newSvc(repo, store).Create(context.Background(), uuid.New(), header, file)
 
 	if err == nil {
 		t.Error("expected error, got nil")
 	}
 	if deleteKey == "" {
 		t.Error("expected storage.Delete to be called for cleanup, but it wasn't")
+	}
+}
+
+func TestService_List_Success(t *testing.T) {
+	userID := uuid.New()
+	repo := &mockRepository{
+		listFn: func(ctx context.Context, uid uuid.UUID, page pagination.Page) ([]*Document, error) {
+			return []*Document{
+				{ID: uuid.New(), UserID: uid, Name: "a.pdf"},
+				{ID: uuid.New(), UserID: uid, Name: "b.txt"},
+			}, nil
+		},
+		countFn: func(ctx context.Context, uid uuid.UUID) (int, error) { return 2, nil },
+	}
+
+	result, err := newSvc(repo, &mockStorage{}).List(context.Background(), userID, pagination.New(1, 15))
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(result.Content) != 2 {
+		t.Errorf("expected 2 docs, got %d", len(result.Content))
+	}
+	if result.TotalElements != 2 {
+		t.Errorf("expected total 2, got %d", result.TotalElements)
+	}
+	if result.TotalPages != 1 {
+		t.Errorf("expected 1 page, got %d", result.TotalPages)
 	}
 }
 
@@ -172,7 +190,7 @@ func TestService_Get_Success(t *testing.T) {
 		},
 	}
 
-	resp, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Get(context.Background(), userID, docID)
+	resp, err := newSvc(repo, &mockStorage{}).Get(context.Background(), userID, docID)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -184,16 +202,13 @@ func TestService_Get_Success(t *testing.T) {
 
 func TestService_Get_Forbidden(t *testing.T) {
 	ownerID := uuid.New()
-	attackerID := uuid.New()
-	docID := uuid.New()
-
 	repo := &mockRepository{
 		getByIDFn: func(ctx context.Context, id uuid.UUID) (*Document, error) {
-			return &Document{ID: docID, UserID: ownerID}, nil
+			return &Document{ID: uuid.New(), UserID: ownerID}, nil
 		},
 	}
 
-	_, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Get(context.Background(), attackerID, docID)
+	_, err := newSvc(repo, &mockStorage{}).Get(context.Background(), uuid.New(), uuid.New())
 
 	if !errors.Is(err, ErrForbidden) {
 		t.Errorf("expected ErrForbidden, got %v", err)
@@ -207,7 +222,7 @@ func TestService_Get_NotFound(t *testing.T) {
 		},
 	}
 
-	_, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Get(context.Background(), uuid.New(), uuid.New())
+	_, err := newSvc(repo, &mockStorage{}).Get(context.Background(), uuid.New(), uuid.New())
 
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
@@ -221,14 +236,10 @@ func TestService_Update_Success(t *testing.T) {
 		getByIDFn: func(ctx context.Context, id uuid.UUID) (*Document, error) {
 			return &Document{ID: docID, UserID: userID, Name: "old.pdf"}, nil
 		},
-		updateFn: func(ctx context.Context, doc *Document) error {
-			return nil
-		},
+		updateFn: func(ctx context.Context, doc *Document) error { return nil },
 	}
 
-	resp, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Update(
-		context.Background(), userID, docID, &UpdateRequest{Name: "new.pdf"},
-	)
+	resp, err := newSvc(repo, &mockStorage{}).Update(context.Background(), userID, docID, &UpdateRequest{Name: "new.pdf"})
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -240,64 +251,55 @@ func TestService_Update_Success(t *testing.T) {
 
 func TestService_Update_Forbidden(t *testing.T) {
 	ownerID := uuid.New()
-	attackerID := uuid.New()
-	docID := uuid.New()
-
-	repo := &mockRepository{
-		getByIDFn: func(ctx context.Context, id uuid.UUID) (*Document, error) {
-			return &Document{ID: docID, UserID: ownerID}, nil
-		},
-	}
-
-	_, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Update(
-		context.Background(), attackerID, docID, &UpdateRequest{Name: "hacked.pdf"},
-	)
-
-	if !errors.Is(err, ErrForbidden) {
-		t.Errorf("expected ErrForbidden, got %v", err)
-	}
-}
-
-func TestService_Delete_Success(t *testing.T) {
-	userID := uuid.New()
-	docID := uuid.New()
-	storageKey := "users/x/documents/y.pdf"
-
-	repo := &mockRepository{
-		getByIDFn: func(ctx context.Context, id uuid.UUID) (*Document, error) {
-			return &Document{ID: docID, UserID: userID, StorageKey: storageKey}, nil
-		},
-		deleteFn: func(ctx context.Context, id uuid.UUID) error {
-			return nil
-		},
-	}
-	store := &mockStorage{
-		deleteFn: func(ctx context.Context, key string) error {
-			return nil
-		},
-	}
-
-	if err := NewService(repo, store, queue.NewMemoryQueue(1000)).Delete(context.Background(), userID, docID); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-}
-
-func TestService_Delete_Forbidden(t *testing.T) {
-	ownerID := uuid.New()
-	attackerID := uuid.New()
-
 	repo := &mockRepository{
 		getByIDFn: func(ctx context.Context, id uuid.UUID) (*Document, error) {
 			return &Document{ID: uuid.New(), UserID: ownerID}, nil
 		},
 	}
 
-	err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Delete(context.Background(), attackerID, uuid.New())
+	_, err := newSvc(repo, &mockStorage{}).Update(context.Background(), uuid.New(), uuid.New(), &UpdateRequest{Name: "hacked.pdf"})
 
 	if !errors.Is(err, ErrForbidden) {
 		t.Errorf("expected ErrForbidden, got %v", err)
 	}
 }
+
+// --- Delete ---
+
+func TestService_Delete_Success(t *testing.T) {
+	userID := uuid.New()
+	docID := uuid.New()
+	repo := &mockRepository{
+		getByIDFn: func(ctx context.Context, id uuid.UUID) (*Document, error) {
+			return &Document{ID: docID, UserID: userID, StorageKey: "key.pdf"}, nil
+		},
+		deleteFn: func(ctx context.Context, id uuid.UUID) error { return nil },
+	}
+	store := &mockStorage{
+		deleteFn: func(ctx context.Context, key string) error { return nil },
+	}
+
+	if err := newSvc(repo, store).Delete(context.Background(), userID, docID); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestService_Delete_Forbidden(t *testing.T) {
+	ownerID := uuid.New()
+	repo := &mockRepository{
+		getByIDFn: func(ctx context.Context, id uuid.UUID) (*Document, error) {
+			return &Document{ID: uuid.New(), UserID: ownerID}, nil
+		},
+	}
+
+	err := newSvc(repo, &mockStorage{}).Delete(context.Background(), uuid.New(), uuid.New())
+
+	if !errors.Is(err, ErrForbidden) {
+		t.Errorf("expected ErrForbidden, got %v", err)
+	}
+}
+
+// --- Download ---
 
 func TestService_Download_Success(t *testing.T) {
 	userID := uuid.New()
@@ -315,7 +317,7 @@ func TestService_Download_Success(t *testing.T) {
 		},
 	}
 
-	doc, reader, err := NewService(repo, store, queue.NewMemoryQueue(1000)).Download(context.Background(), userID, docID)
+	doc, reader, err := newSvc(repo, store).Download(context.Background(), userID, docID)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -324,7 +326,6 @@ func TestService_Download_Success(t *testing.T) {
 	if doc.ID != docID {
 		t.Errorf("expected doc ID %s, got %s", docID, doc.ID)
 	}
-
 	got, _ := io.ReadAll(reader)
 	if string(got) != content {
 		t.Errorf("expected content %q, got %q", content, got)
@@ -333,20 +334,20 @@ func TestService_Download_Success(t *testing.T) {
 
 func TestService_Download_Forbidden(t *testing.T) {
 	ownerID := uuid.New()
-	attackerID := uuid.New()
-
 	repo := &mockRepository{
 		getByIDFn: func(ctx context.Context, id uuid.UUID) (*Document, error) {
 			return &Document{ID: uuid.New(), UserID: ownerID}, nil
 		},
 	}
 
-	_, _, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Download(context.Background(), attackerID, uuid.New())
+	_, _, err := newSvc(repo, &mockStorage{}).Download(context.Background(), uuid.New(), uuid.New())
 
 	if !errors.Is(err, ErrForbidden) {
 		t.Errorf("expected ErrForbidden, got %v", err)
 	}
 }
+
+// --- Validation ---
 
 func TestValidateFile_AllowedTypes(t *testing.T) {
 	cases := []struct {
@@ -394,33 +395,182 @@ func TestValidateFile_RejectedTypes(t *testing.T) {
 	}
 }
 
-func TestService_List_Success(t *testing.T) {
-	userID := uuid.New()
-	repo := &mockRepository{
-		listFn: func(ctx context.Context, uid uuid.UUID, page pagination.Page) ([]*Document, error) {
-			return []*Document{
-				{ID: uuid.New(), UserID: uid, Name: "a.pdf"},
-				{ID: uuid.New(), UserID: uid, Name: "b.txt"},
-			}, nil
+func readyDoc(userID, docID uuid.UUID) *mockRepository {
+	return &mockRepository{
+		getByIDFn: func(ctx context.Context, id uuid.UUID) (*Document, error) {
+			return &Document{ID: docID, UserID: userID, Status: StatusReady}, nil
 		},
-		countFn: func(ctx context.Context, uid uuid.UUID) (int, error) {
-			return 2, nil
+	}
+}
+
+func TestService_Query_Success(t *testing.T) {
+	userID := uuid.New()
+	docID := uuid.New()
+
+	repo := readyDoc(userID, docID)
+	repo.findSimilarChunksFn = func(ctx context.Context, id uuid.UUID, embedding []float32, limit int) ([]*completer.SimilarChunk, error) {
+		return []*completer.SimilarChunk{
+			{Content: "relevant content"},
+		}, nil
+	}
+
+	completer := &mockCompleter{
+		completeFn: func(ctx context.Context, question string, chunks []*completer.SimilarChunk) (string, error) {
+			return "the answer", nil
 		},
 	}
 
-	page := pagination.New(1, 15)
-	result, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).List(context.Background(), userID, page)
+	svc := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1), &mockEmbedder{}, completer)
+	resp, err := svc.Query(context.Background(), userID, docID, &QueryRequest{Question: "what is this?"})
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if len(result.Content) != 2 {
-		t.Errorf("expected 2 docs, got %d", len(result.Content))
+	if resp.Answer != "the answer" {
+		t.Errorf("expected 'the answer', got %s", resp.Answer)
 	}
-	if result.TotalElements != 2 {
-		t.Errorf("expected total 2, got %d", result.TotalElements)
+	if resp.Question != "what is this?" {
+		t.Errorf("expected question echoed back, got %s", resp.Question)
 	}
-	if result.TotalPages != 1 {
-		t.Errorf("expected 1 page, got %d", result.TotalPages)
+}
+
+func TestService_Query_DocumentNotReady(t *testing.T) {
+	userID := uuid.New()
+	docID := uuid.New()
+
+	repo := &mockRepository{
+		getByIDFn: func(ctx context.Context, id uuid.UUID) (*Document, error) {
+			return &Document{ID: docID, UserID: userID, Status: StatusProcessing}, nil
+		},
+	}
+
+	svc := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1), &mockEmbedder{}, &mockCompleter{})
+	_, err := svc.Query(context.Background(), userID, docID, &QueryRequest{Question: "?"})
+
+	if !errors.Is(err, ErrNotReady) {
+		t.Errorf("expected ErrNotReady, got %v", err)
+	}
+}
+
+func TestService_Query_Forbidden(t *testing.T) {
+	ownerID := uuid.New()
+	repo := &mockRepository{
+		getByIDFn: func(ctx context.Context, id uuid.UUID) (*Document, error) {
+			return &Document{ID: uuid.New(), UserID: ownerID, Status: StatusReady}, nil
+		},
+	}
+
+	svc := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1), &mockEmbedder{}, &mockCompleter{})
+	_, err := svc.Query(context.Background(), uuid.New(), uuid.New(), &QueryRequest{Question: "?"})
+
+	if !errors.Is(err, ErrForbidden) {
+		t.Errorf("expected ErrForbidden, got %v", err)
+	}
+}
+
+func TestService_Query_NotFound(t *testing.T) {
+	repo := &mockRepository{
+		getByIDFn: func(ctx context.Context, id uuid.UUID) (*Document, error) {
+			return nil, ErrNotFound
+		},
+	}
+
+	svc := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1), &mockEmbedder{}, &mockCompleter{})
+	_, err := svc.Query(context.Background(), uuid.New(), uuid.New(), &QueryRequest{Question: "?"})
+
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestService_Query_EmbedFailure(t *testing.T) {
+	userID := uuid.New()
+	docID := uuid.New()
+
+	embedder := &mockEmbedder{
+		embedFn: func(ctx context.Context, chunks []string) ([][]float32, error) {
+			return nil, errors.New("openai unavailable")
+		},
+	}
+
+	svc := NewService(readyDoc(userID, docID), &mockStorage{}, queue.NewMemoryQueue(1), embedder, &mockCompleter{})
+	_, err := svc.Query(context.Background(), userID, docID, &QueryRequest{Question: "?"})
+
+	if err == nil {
+		t.Error("expected error on embed failure, got nil")
+	}
+}
+
+func TestService_Query_NoChunksFound_ReturnsDefault(t *testing.T) {
+	userID := uuid.New()
+	docID := uuid.New()
+
+	repo := readyDoc(userID, docID)
+	repo.findSimilarChunksFn = func(ctx context.Context, id uuid.UUID, embedding []float32, limit int) ([]*completer.SimilarChunk, error) {
+		return []*completer.SimilarChunk{}, nil
+	}
+
+	svc := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1), &mockEmbedder{}, &mockCompleter{})
+	resp, err := svc.Query(context.Background(), userID, docID, &QueryRequest{Question: "?"})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if resp.Answer == "" {
+		t.Error("expected a default answer when no chunks found")
+	}
+}
+
+func TestService_Query_CompleterFailure(t *testing.T) {
+	userID := uuid.New()
+	docID := uuid.New()
+
+	repo := readyDoc(userID, docID)
+	repo.findSimilarChunksFn = func(ctx context.Context, id uuid.UUID, embedding []float32, limit int) ([]*completer.SimilarChunk, error) {
+		return []*completer.SimilarChunk{{Content: "some content"}}, nil
+	}
+
+	completer := &mockCompleter{
+		completeFn: func(ctx context.Context, question string, chunks []*completer.SimilarChunk) (string, error) {
+			return "", errors.New("openai unavailable")
+		},
+	}
+
+	svc := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1), &mockEmbedder{}, completer)
+	_, err := svc.Query(context.Background(), userID, docID, &QueryRequest{Question: "?"})
+
+	if err == nil {
+		t.Error("expected error on completer failure, got nil")
+	}
+}
+
+func TestService_Query_EmbeddingPassedToSearch(t *testing.T) {
+	userID := uuid.New()
+	docID := uuid.New()
+	var capturedEmbedding []float32
+
+	fakeEmbedding := []float32{0.1, 0.2, 0.3}
+	embedder := &mockEmbedder{
+		embedFn: func(ctx context.Context, chunks []string) ([][]float32, error) {
+			return [][]float32{fakeEmbedding}, nil
+		},
+	}
+
+	repo := readyDoc(userID, docID)
+	repo.findSimilarChunksFn = func(ctx context.Context, id uuid.UUID, embedding []float32, limit int) ([]*completer.SimilarChunk, error) {
+		capturedEmbedding = embedding
+		return []*completer.SimilarChunk{}, nil
+	}
+
+	svc := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1), embedder, &mockCompleter{})
+	svc.Query(context.Background(), userID, docID, &QueryRequest{Question: "test question"})
+
+	if len(capturedEmbedding) != len(fakeEmbedding) {
+		t.Fatalf("expected embedding length %d, got %d", len(fakeEmbedding), len(capturedEmbedding))
+	}
+	for i, v := range fakeEmbedding {
+		if capturedEmbedding[i] != v {
+			t.Errorf("embedding[%d]: expected %f, got %f", i, v, capturedEmbedding[i])
+		}
 	}
 }

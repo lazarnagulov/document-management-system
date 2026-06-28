@@ -2,21 +2,25 @@ package extractor
 
 import "fmt"
 
-type Factory struct {
+type Factory interface {
+	For(contentType string) (Extractor, error)
+}
+
+type factory struct {
 	pdf  *PDFExtractor
 	docx *DOCXExtractor
 	txt  *TXTExtractor
 }
 
-func NewFactory(cfg Config) *Factory {
-	return &Factory{
+func NewFactory(cfg Config) Factory {
+	return &factory{
 		pdf:  NewPDFExtractor(cfg.PDFURL),
 		docx: NewDOCXExtractor(cfg.DOCXURL),
 		txt:  NewTXTExtractor(),
 	}
 }
 
-func (f *Factory) For(contentType string) (Extractor, error) {
+func (f *factory) For(contentType string) (Extractor, error) {
 	switch contentType {
 	case "application/pdf":
 		return f.pdf, nil

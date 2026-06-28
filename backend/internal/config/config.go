@@ -19,6 +19,11 @@ type AppConfig struct {
 	Minio     storage.MinioConfig
 	Auth      token.Config
 	Extractor extractor.Config
+	OpenAI    OpenAIConfig
+}
+
+type OpenAIConfig struct {
+	APIKey string
 }
 
 func Load() *AppConfig {
@@ -43,6 +48,9 @@ func Load() *AppConfig {
 			Endpoint:   getEnv("MINIO_ENDPOINT", "localhost:9000"),
 			BucketName: getEnv("MINIO_BUCKET", "documents"),
 			UseSSL:     getEnv("MINIO_USE_SSL", "") == "true",
+		},
+		OpenAI: OpenAIConfig{
+			APIKey: getEnv("OPENAI_API_KEY", ""),
 		},
 		DB: db.Config{
 			Host:     getEnv("DB_HOST", "localhost"),

@@ -10,7 +10,7 @@ type DOCXExtractor struct {
 }
 
 func NewDOCXExtractor(url string) *DOCXExtractor {
-	return &DOCXExtractor{newRemoteExtractor(url+"/extract", "document.docx")}
+	return &DOCXExtractor{newRemoteExtractor(url+"/extract", "document.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
 }
 
 func (e *DOCXExtractor) Extract(ctx context.Context, content io.Reader) (string, error) {

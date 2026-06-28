@@ -12,5 +12,6 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 		protected.PATCH("/:id", h.Update)
 		protected.DELETE("/:id", h.Delete)
 		protected.GET("/:id/download", h.Download)
+		protected.POST("/:id/query", h.Query)
 	}
 }

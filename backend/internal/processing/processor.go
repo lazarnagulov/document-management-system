@@ -3,9 +3,12 @@ package processing
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"bitbucket.org/HyperEther/document-management-system/internal/document"
 	"bitbucket.org/HyperEther/document-management-system/internal/extractor"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/chunker"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/embedder"
 	"bitbucket.org/HyperEther/document-management-system/internal/storage"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -14,15 +17,26 @@ import (
 type Processor struct {
 	repo      document.Repository
 	storage   storage.Storage
-	extractor *extractor.Factory
+	extractor extractor.Factory
+	chunker   chunker.Chunker
+	embedder  embedder.Embedder
 	log       *zap.Logger
 }
 
-func NewProcessor(repo document.Repository, storage storage.Storage, extractor *extractor.Factory, log *zap.Logger) *Processor {
+func NewProcessor(
+	repo document.Repository,
+	storage storage.Storage,
+	extractor extractor.Factory,
+	chunker chunker.Chunker,
+	embedder embedder.Embedder,
+	log *zap.Logger,
+) *Processor {
 	return &Processor{
 		repo:      repo,
 		storage:   storage,
 		extractor: extractor,
+		embedder:  embedder,
+		chunker:   chunker,
 		log:       log,
 	}
 }
@@ -50,33 +64,72 @@ func (p *Processor) process(ctx context.Context, documentID uuid.UUID) error {
 		return fmt.Errorf("set processing status: %w", err)
 	}
 
+	doc, text, err := p.loadDocumentText(ctx, documentID)
+	if err != nil {
+		return err
+	}
+
+	rawChunks := p.chunker.Chunk(text)
+	if len(rawChunks) == 0 {
+		return p.repo.UpdateStatus(ctx, documentID, document.StatusReady)
+	}
+
+	chunks, err := p.createChunks(ctx, doc.ID, rawChunks)
+	if err != nil {
+		return err
+	}
+
+	if err := p.repo.SaveChunks(ctx, chunks); err != nil {
+		return fmt.Errorf("save chunks: %w", err)
+	}
+
+	return p.repo.UpdateStatus(ctx, documentID, document.StatusReady)
+}
+
+func (p *Processor) loadDocumentText(ctx context.Context, documentID uuid.UUID) (*document.Document, string, error) {
 	doc, err := p.repo.GetByID(ctx, documentID)
 	if err != nil {
-		return fmt.Errorf("get document: %w", err)
+		return nil, "", fmt.Errorf("get document: %w", err)
 	}
 
 	file, err := p.storage.Download(ctx, doc.StorageKey)
 	if err != nil {
-		return fmt.Errorf("download file: %w", err)
+		return nil, "", fmt.Errorf("download file: %w", err)
 	}
 	defer file.Close()
 
 	ext, err := p.extractor.For(doc.ContentType)
 	if err != nil {
-		return fmt.Errorf("get extractor: %w", err)
+		return nil, "", fmt.Errorf("get extractor: %w", err)
 	}
 
 	text, err := ext.Extract(ctx, file)
 	if err != nil {
-		return fmt.Errorf("extract text: %w", err)
+		return nil, "", fmt.Errorf("extract text: %w", err)
 	}
 
-	_ = text
+	return doc, text, nil
+}
 
-	if err := p.repo.UpdateStatus(ctx, documentID, document.StatusReady); err != nil {
-		return fmt.Errorf("set ready status: %w", err)
+func (p *Processor) createChunks(ctx context.Context, documentID uuid.UUID, rawChunks []string) ([]*document.Chunk, error) {
+	embeddings, err := p.embedder.Embed(ctx, rawChunks)
+	if err != nil {
+		return nil, fmt.Errorf("embed chunks: %w", err)
 	}
 
-	p.log.Info("document processed successfully", zap.String("document_id", documentID.String()))
-	return nil
+	now := time.Now()
+	chunks := make([]*document.Chunk, len(rawChunks))
+
+	for i, content := range rawChunks {
+		chunks[i] = &document.Chunk{
+			ID:         uuid.New(),
+			DocumentID: documentID,
+			Content:    content,
+			Embedding:  embeddings[i],
+			ChunkIndex: i,
+			CreatedAt:  now,
+		}
+	}
+
+	return chunks, nil
 }
