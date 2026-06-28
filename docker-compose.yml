@@ -58,6 +58,8 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-dms_admin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-admin-sifra}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-secret_key}
+      PDF_EXTRACTOR_URL: ${PDF_EXTRACTOR_URL:-http://pdf_extractor:8000}
+      DOCX_EXTRACTOR_URL: ${DOCX_EXTRACTOR_URL:-http://docx-extractor:3000}
     depends_on:
       postgres_db:
         condition: service_healthy

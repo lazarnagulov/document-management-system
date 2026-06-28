@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 )
 
 func PostJSON(ctx context.Context, client *http.Client, url string, payload, target any, headers map[string]string) error {
@@ -43,18 +44,36 @@ func PostJSON(ctx context.Context, client *http.Client, url string, payload, tar
 	return nil
 }
 
-func PostMultipart(ctx context.Context, client *http.Client, url, fieldName, filename string, content io.Reader, target any) error {
+func PostMultipart(
+	ctx context.Context,
+	client *http.Client,
+	url, fieldName, filename, contentType string,
+	content io.Reader,
+	target any,
+) error {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	part, err := writer.CreateFormFile(fieldName, filename)
+	h := make(textproto.MIMEHeader)
+	h.Set(
+		"Content-Disposition",
+		fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, filename),
+	)
+
+	h.Set("Content-Type", contentType)
+
+	part, err := writer.CreatePart(h)
 	if err != nil {
 		return fmt.Errorf("create form file: %w", err)
 	}
+
 	if _, err := io.Copy(part, content); err != nil {
 		return fmt.Errorf("copy content: %w", err)
 	}
-	writer.Close()
+
+	if err := writer.Close(); err != nil {
+		return err
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
@@ -73,9 +92,5 @@ func PostMultipart(ctx context.Context, client *http.Client, url, fieldName, fil
 		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, raw)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		return fmt.Errorf("decode response: %w", err)
-	}
-
-	return nil
+	return json.NewDecoder(resp.Body).Decode(target)
 }
