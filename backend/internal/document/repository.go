@@ -16,6 +16,7 @@ type Repository interface {
 	ListByUserID(ctx context.Context, userID uuid.UUID, page pagination.Page) ([]*Document, error)
 	CountByUserID(ctx context.Context, userID uuid.UUID) (int, error)
 	Update(ctx context.Context, doc *Document) error
+	UpdateStatus(ctx context.Context, id uuid.UUID, status DocumentStatus) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
@@ -29,12 +30,12 @@ func NewRepository(db *sql.DB) Repository {
 
 func (r *repository) Create(ctx context.Context, doc *Document) error {
 	const q = `
-		INSERT INTO documents (id, user_id, name, content_type, size, storage_key, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+		INSERT INTO documents (id, user_id, name, content_type, size, storage_key, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	_, err := r.db.ExecContext(ctx, q,
 		doc.ID, doc.UserID, doc.Name, doc.ContentType,
-		doc.Size, doc.StorageKey, doc.CreatedAt, doc.UpdatedAt,
+		doc.Size, doc.StorageKey, doc.Status, doc.CreatedAt, doc.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("create document: %w", err)
@@ -44,13 +45,13 @@ func (r *repository) Create(ctx context.Context, doc *Document) error {
 
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*Document, error) {
 	const q = `
-		SELECT id, user_id, name, content_type, size, storage_key, created_at, updated_at
+		SELECT id, user_id, name, content_type, size, storage_key, status, created_at, updated_at
 		FROM documents WHERE id = $1`
 
 	d := &Document{}
 	err := r.db.QueryRowContext(ctx, q, id).Scan(
 		&d.ID, &d.UserID, &d.Name, &d.ContentType,
-		&d.Size, &d.StorageKey, &d.CreatedAt, &d.UpdatedAt,
+		&d.Size, &d.StorageKey, &d.Status, &d.CreatedAt, &d.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -78,6 +79,23 @@ func (r *repository) Update(ctx context.Context, doc *Document) error {
 	return nil
 }
 
+func (r *repository) UpdateStatus(ctx context.Context, id uuid.UUID, status DocumentStatus) error {
+	const q = `UPDATE documents SET status = $1 WHERE id = $2`
+
+	result, err := r.db.ExecContext(ctx, q, status, id)
+	if err != nil {
+		return fmt.Errorf("update document status: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("update document status rows affected: %w", err)
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (r *repository) Delete(ctx context.Context, id uuid.UUID) error {
 	const q = `DELETE FROM documents WHERE id = $1`
 
@@ -97,7 +115,7 @@ func (r *repository) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (r *repository) ListByUserID(ctx context.Context, userID uuid.UUID, page pagination.Page) ([]*Document, error) {
 	const q = `
-		SELECT id, user_id, name, content_type, size, storage_key, created_at, updated_at
+		SELECT id, user_id, name, content_type, size, storage_key, status, created_at, updated_at
 		FROM documents WHERE user_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3`
@@ -113,7 +131,7 @@ func (r *repository) ListByUserID(ctx context.Context, userID uuid.UUID, page pa
 		d := &Document{}
 		if err := rows.Scan(
 			&d.ID, &d.UserID, &d.Name, &d.ContentType,
-			&d.Size, &d.StorageKey, &d.CreatedAt, &d.UpdatedAt,
+			&d.Size, &d.StorageKey, &d.Status, &d.CreatedAt, &d.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan document: %w", err)
 		}

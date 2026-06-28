@@ -21,7 +21,10 @@ func main() {
 	}
 	defer log.Sync()
 
-	app, err := setupDependencies(cfg, log)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	app, err := setupDependencies(ctx, cfg, log)
 	if err != nil {
 		log.Fatal("failed to setup dependencies", zap.Error(err))
 	}
@@ -43,8 +46,6 @@ func main() {
 		}
 	}()
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	<-ctx.Done()
 
 	log.Info("shutting down...")

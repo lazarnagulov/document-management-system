@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/pagination"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/queue"
 	"bitbucket.org/HyperEther/document-management-system/internal/storage"
 	"github.com/google/uuid"
 )
@@ -24,10 +25,11 @@ type Service interface {
 type service struct {
 	repo    Repository
 	storage storage.Storage
+	queue   queue.Queue
 }
 
-func NewService(repo Repository, storage storage.Storage) Service {
-	return &service{repo: repo, storage: storage}
+func NewService(repo Repository, storage storage.Storage, queue queue.Queue) Service {
+	return &service{repo: repo, storage: storage, queue: queue}
 }
 
 func (s *service) Create(ctx context.Context, userID uuid.UUID, header *multipart.FileHeader, file io.Reader) (*Response, error) {
@@ -42,6 +44,7 @@ func (s *service) Create(ctx context.Context, userID uuid.UUID, header *multipar
 		Name:        info.name,
 		ContentType: info.contentType,
 		Size:        info.size,
+		Status:      StatusUploaded,
 		StorageKey:  storageKey(userID, uuid.New(), info.ext),
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -54,6 +57,10 @@ func (s *service) Create(ctx context.Context, userID uuid.UUID, header *multipar
 	if err := s.repo.Create(ctx, doc); err != nil {
 		_ = s.storage.Delete(ctx, doc.StorageKey)
 		return nil, fmt.Errorf("save document: %w", err)
+	}
+
+	if err := s.queue.Push(ctx, queue.Job{DocumentID: doc.ID}); err != nil {
+		_ = s.repo.UpdateStatus(ctx, doc.ID, StatusFailed)
 	}
 
 	return ToResponse(doc), nil
