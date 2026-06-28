@@ -1,0 +1,17 @@
+export type DocumentStatus = 'UPLOADED' | 'PROCESSING' | 'READY' | 'FAILED';
+
+export interface DocumentResponse {
+  id: string;
+  name: string;
+  content_type: string;
+  size: number;
+  status: DocumentStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  sender: 'user' | 'ai';
+  text: string;
+  loading?: boolean;
+}
