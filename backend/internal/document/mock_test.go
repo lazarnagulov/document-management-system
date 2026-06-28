@@ -62,12 +62,13 @@ func (m *mockService) Download(ctx context.Context, userID, docID uuid.UUID) (*D
 }
 
 type mockRepository struct {
-	createFn  func(ctx context.Context, doc *Document) error
-	getByIDFn func(ctx context.Context, id uuid.UUID) (*Document, error)
-	updateFn  func(ctx context.Context, doc *Document) error
-	listFn    func(ctx context.Context, userID uuid.UUID, page pagination.Page) ([]*Document, error)
-	countFn   func(ctx context.Context, userID uuid.UUID) (int, error)
-	deleteFn  func(ctx context.Context, id uuid.UUID) error
+	createFn       func(ctx context.Context, doc *Document) error
+	getByIDFn      func(ctx context.Context, id uuid.UUID) (*Document, error)
+	updateFn       func(ctx context.Context, doc *Document) error
+	listFn         func(ctx context.Context, userID uuid.UUID, page pagination.Page) ([]*Document, error)
+	updateStatusFn func(ctx context.Context, id uuid.UUID, status DocumentStatus) error
+	countFn        func(ctx context.Context, userID uuid.UUID) (int, error)
+	deleteFn       func(ctx context.Context, id uuid.UUID) error
 }
 
 func (m *mockRepository) Create(ctx context.Context, doc *Document) error {
@@ -89,6 +90,13 @@ func (m *mockRepository) Update(ctx context.Context, doc *Document) error {
 		return fmt.Errorf("updateFn not set")
 	}
 	return m.updateFn(ctx, doc)
+}
+
+func (m *mockRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status DocumentStatus) error {
+	if m.updateStatusFn == nil {
+		return fmt.Errorf("updateStatusFn not set")
+	}
+	return m.updateStatusFn(ctx, id, status)
 }
 
 func (m *mockRepository) Delete(ctx context.Context, id uuid.UUID) error {

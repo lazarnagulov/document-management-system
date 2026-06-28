@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 
+	"bitbucket.org/HyperEther/document-management-system/internal/extractor"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/db"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/token"
 	"bitbucket.org/HyperEther/document-management-system/internal/storage"
@@ -10,13 +11,14 @@ import (
 )
 
 type AppConfig struct {
-	Env     string
-	Port    string
-	ApiURL  string
-	AppRoot string
-	DB      db.Config
-	Minio   storage.MinioConfig
-	Auth    token.Config
+	Env       string
+	Port      string
+	ApiURL    string
+	AppRoot   string
+	DB        db.Config
+	Minio     storage.MinioConfig
+	Auth      token.Config
+	Extractor extractor.Config
 }
 
 func Load() *AppConfig {
@@ -30,6 +32,10 @@ func Load() *AppConfig {
 		Auth: token.Config{
 			AccessSecret:  getEnv("JWT_ACCESS_SECRET", ""),
 			RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
+		},
+		Extractor: extractor.Config{
+			PDFURL:  getEnv("PDF_EXTRACTOR_URL", "http://pdf-extractor:8000"),
+			DOCXURL: getEnv("DOCX_EXTRACTOR_URL", "http://docx-extractor:3000"),
 		},
 		Minio: storage.MinioConfig{
 			AccessKey:  getEnv("MINIO_ACCESS_KEY", "dms_admin"),

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -9,8 +10,11 @@ import (
 	"bitbucket.org/HyperEther/document-management-system/internal/auth"
 	"bitbucket.org/HyperEther/document-management-system/internal/config"
 	"bitbucket.org/HyperEther/document-management-system/internal/document"
+	"bitbucket.org/HyperEther/document-management-system/internal/extractor"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/db"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/middleware"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/queue"
+	"bitbucket.org/HyperEther/document-management-system/internal/processing"
 	"bitbucket.org/HyperEther/document-management-system/internal/storage"
 	"go.uber.org/zap"
 )
@@ -20,7 +24,7 @@ type Application struct {
 	Router http.Handler
 }
 
-func setupDependencies(cfg *config.AppConfig, log *zap.Logger) (*Application, error) {
+func setupDependencies(ctx context.Context, cfg *config.AppConfig, log *zap.Logger) (*Application, error) {
 	if cfg.Auth.AccessSecret == "" || cfg.Auth.RefreshSecret == "" {
 		return nil, errors.New("JWT secrets must be set")
 	}
@@ -43,17 +47,24 @@ func setupDependencies(cfg *config.AppConfig, log *zap.Logger) (*Application, er
 	}
 	log.Info("Successfully connected to the database!")
 
+	q := queue.NewMemoryQueue(100)
+
 	authMw := middleware.Authenticate(cfg.Auth)
 
 	authRepo := auth.NewRepository(database)
 	authService := auth.NewService(authRepo, cfg.Auth)
 	authHandler := auth.NewHandler(authService, authMw)
 
-	documentRepo := document.NewRepository(database)
-	documentService := document.NewService(documentRepo, minio)
-	documentHandler := document.NewHandler(documentService, authMw)
+	docRepo := document.NewRepository(database)
+	docService := document.NewService(docRepo, minio, q)
+	docHandler := document.NewHandler(docService, authMw)
 
-	r.RegisterRoutes(authHandler, documentHandler)
+	r.RegisterRoutes(authHandler, docHandler)
+
+	extractorFactory := extractor.NewFactory(cfg.Extractor)
+	processor := processing.NewProcessor(docRepo, minio, extractorFactory, log)
+	worker := processing.NewWorker(q, processor)
+	worker.Start(ctx)
 
 	return &Application{
 		DB:     database,

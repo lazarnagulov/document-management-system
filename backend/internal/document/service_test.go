@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/pagination"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/queue"
 	"github.com/google/uuid"
 )
 
@@ -66,7 +67,7 @@ func TestService_Create_Success(t *testing.T) {
 	}
 
 	header, file := buildFileHeader(t, "test.pdf", "application/pdf", "content")
-	svc := NewService(repo, store)
+	svc := NewService(repo, store, queue.NewMemoryQueue(100))
 	resp, err := svc.Create(context.Background(), userID, header, file)
 
 	if err != nil {
@@ -88,7 +89,7 @@ func TestService_Create_UnsupportedType(t *testing.T) {
 	store := &mockStorage{}
 
 	header, file := buildFileHeader(t, "virus.exe", "application/octet-stream", "binary")
-	_, err := NewService(repo, store).Create(context.Background(), uuid.New(), header, file)
+	_, err := NewService(repo, store, queue.NewMemoryQueue(1000)).Create(context.Background(), uuid.New(), header, file)
 
 	if !errors.Is(err, ErrUnsupportedType) {
 		t.Errorf("expected ErrUnsupportedType, got %v", err)
@@ -100,7 +101,7 @@ func TestService_Create_MIMEMismatch(t *testing.T) {
 	store := &mockStorage{}
 
 	header, file := buildFileHeader(t, "sneaky.pdf", "text/plain", "not a pdf")
-	_, err := NewService(repo, store).Create(context.Background(), uuid.New(), header, file)
+	_, err := NewService(repo, store, queue.NewMemoryQueue(1000)).Create(context.Background(), uuid.New(), header, file)
 
 	if !errors.Is(err, ErrUnsupportedType) {
 		t.Errorf("expected ErrUnsupportedType for MIME mismatch, got %v", err)
@@ -123,7 +124,7 @@ func TestService_Create_StorageFailure_NoOrphan(t *testing.T) {
 	}
 
 	header, file := buildFileHeader(t, "test.pdf", "application/pdf", "content")
-	_, err := NewService(repo, store).Create(context.Background(), uuid.New(), header, file)
+	_, err := NewService(repo, store, queue.NewMemoryQueue(1000)).Create(context.Background(), uuid.New(), header, file)
 
 	if err == nil {
 		t.Error("expected error, got nil")
@@ -152,7 +153,7 @@ func TestService_Create_DBFailure_CleansUpStorage(t *testing.T) {
 	}
 
 	header, file := buildFileHeader(t, "test.pdf", "application/pdf", "content")
-	_, err := NewService(repo, store).Create(context.Background(), uuid.New(), header, file)
+	_, err := NewService(repo, store, queue.NewMemoryQueue(1000)).Create(context.Background(), uuid.New(), header, file)
 
 	if err == nil {
 		t.Error("expected error, got nil")
@@ -171,7 +172,7 @@ func TestService_Get_Success(t *testing.T) {
 		},
 	}
 
-	resp, err := NewService(repo, &mockStorage{}).Get(context.Background(), userID, docID)
+	resp, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Get(context.Background(), userID, docID)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -192,7 +193,7 @@ func TestService_Get_Forbidden(t *testing.T) {
 		},
 	}
 
-	_, err := NewService(repo, &mockStorage{}).Get(context.Background(), attackerID, docID)
+	_, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Get(context.Background(), attackerID, docID)
 
 	if !errors.Is(err, ErrForbidden) {
 		t.Errorf("expected ErrForbidden, got %v", err)
@@ -206,7 +207,7 @@ func TestService_Get_NotFound(t *testing.T) {
 		},
 	}
 
-	_, err := NewService(repo, &mockStorage{}).Get(context.Background(), uuid.New(), uuid.New())
+	_, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Get(context.Background(), uuid.New(), uuid.New())
 
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
@@ -225,7 +226,7 @@ func TestService_Update_Success(t *testing.T) {
 		},
 	}
 
-	resp, err := NewService(repo, &mockStorage{}).Update(
+	resp, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Update(
 		context.Background(), userID, docID, &UpdateRequest{Name: "new.pdf"},
 	)
 
@@ -248,7 +249,7 @@ func TestService_Update_Forbidden(t *testing.T) {
 		},
 	}
 
-	_, err := NewService(repo, &mockStorage{}).Update(
+	_, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Update(
 		context.Background(), attackerID, docID, &UpdateRequest{Name: "hacked.pdf"},
 	)
 
@@ -276,7 +277,7 @@ func TestService_Delete_Success(t *testing.T) {
 		},
 	}
 
-	if err := NewService(repo, store).Delete(context.Background(), userID, docID); err != nil {
+	if err := NewService(repo, store, queue.NewMemoryQueue(1000)).Delete(context.Background(), userID, docID); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 }
@@ -291,7 +292,7 @@ func TestService_Delete_Forbidden(t *testing.T) {
 		},
 	}
 
-	err := NewService(repo, &mockStorage{}).Delete(context.Background(), attackerID, uuid.New())
+	err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Delete(context.Background(), attackerID, uuid.New())
 
 	if !errors.Is(err, ErrForbidden) {
 		t.Errorf("expected ErrForbidden, got %v", err)
@@ -314,7 +315,7 @@ func TestService_Download_Success(t *testing.T) {
 		},
 	}
 
-	doc, reader, err := NewService(repo, store).Download(context.Background(), userID, docID)
+	doc, reader, err := NewService(repo, store, queue.NewMemoryQueue(1000)).Download(context.Background(), userID, docID)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -340,7 +341,7 @@ func TestService_Download_Forbidden(t *testing.T) {
 		},
 	}
 
-	_, _, err := NewService(repo, &mockStorage{}).Download(context.Background(), attackerID, uuid.New())
+	_, _, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).Download(context.Background(), attackerID, uuid.New())
 
 	if !errors.Is(err, ErrForbidden) {
 		t.Errorf("expected ErrForbidden, got %v", err)
@@ -408,7 +409,7 @@ func TestService_List_Success(t *testing.T) {
 	}
 
 	page := pagination.New(1, 15)
-	result, err := NewService(repo, &mockStorage{}).List(context.Background(), userID, page)
+	result, err := NewService(repo, &mockStorage{}, queue.NewMemoryQueue(1000)).List(context.Background(), userID, page)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
