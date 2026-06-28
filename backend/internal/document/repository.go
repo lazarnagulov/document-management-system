@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/completer"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/pagination"
 	"github.com/google/uuid"
 )
@@ -21,6 +22,7 @@ type Repository interface {
 	UpdateStatus(ctx context.Context, id uuid.UUID, status DocumentStatus) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	SaveChunks(ctx context.Context, chunks []*Chunk) error
+	FindSimilarChunks(ctx context.Context, documentID uuid.UUID, embedding []float32, limit int) ([]*completer.SimilarChunk, error)
 }
 
 type repository struct {
@@ -180,6 +182,28 @@ func (r *repository) SaveChunks(ctx context.Context, chunks []*Chunk) error {
 	}
 
 	return tx.Commit()
+}
+
+func (r *repository) FindSimilarChunks(ctx context.Context, documentID uuid.UUID, embedding []float32, limit int) ([]*completer.SimilarChunk, error) {
+	const q = `
+        SELECT id, content, similarity
+        FROM match_chunks($1, $2, $3)`
+
+	rows, err := r.db.QueryContext(ctx, q, formatEmbedding(embedding), documentID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("similarity search: %w", err)
+	}
+	defer rows.Close()
+
+	var chunks []*completer.SimilarChunk
+	for rows.Next() {
+		c := &completer.SimilarChunk{}
+		if err := rows.Scan(&c.ID, &c.Content, &c.Similarity); err != nil {
+			return nil, fmt.Errorf("scan chunk: %w", err)
+		}
+		chunks = append(chunks, c)
+	}
+	return chunks, rows.Err()
 }
 
 func formatEmbedding(embedding []float32) string {

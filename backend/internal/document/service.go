@@ -7,6 +7,8 @@ import (
 	"mime/multipart"
 	"time"
 
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/completer"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/embedder"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/pagination"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/queue"
 	"bitbucket.org/HyperEther/document-management-system/internal/storage"
@@ -20,16 +22,25 @@ type Service interface {
 	Update(ctx context.Context, userID, docID uuid.UUID, req *UpdateRequest) (*Response, error)
 	Delete(ctx context.Context, userID, docID uuid.UUID) error
 	Download(ctx context.Context, userID, docID uuid.UUID) (*Document, io.ReadCloser, error)
+	Query(ctx context.Context, userID, docID uuid.UUID, req *QueryRequest) (*QueryResponse, error)
 }
 
 type service struct {
-	repo    Repository
-	storage storage.Storage
-	queue   queue.Queue
+	repo      Repository
+	storage   storage.Storage
+	queue     queue.Queue
+	embedder  embedder.Embedder
+	completer completer.Completer
 }
 
-func NewService(repo Repository, storage storage.Storage, queue queue.Queue) Service {
-	return &service{repo: repo, storage: storage, queue: queue}
+func NewService(
+	repo Repository,
+	storage storage.Storage,
+	queue queue.Queue,
+	embedder embedder.Embedder,
+	completer completer.Completer,
+) Service {
+	return &service{repo: repo, storage: storage, queue: queue, embedder: embedder, completer: completer}
 }
 
 func (s *service) Create(ctx context.Context, userID uuid.UUID, header *multipart.FileHeader, file io.Reader) (*Response, error) {
@@ -144,6 +155,46 @@ func (s *service) List(ctx context.Context, userID uuid.UUID, page pagination.Pa
 
 	resp := pagination.NewResponse(ToResponseList(docs), total, page)
 	return &resp, nil
+}
+
+func (s *service) Query(ctx context.Context, userID, docID uuid.UUID, req *QueryRequest) (*QueryResponse, error) {
+	doc, err := s.repo.GetByID(ctx, docID)
+	if err != nil {
+		return nil, err
+	}
+	if doc.UserID != userID {
+		return nil, ErrForbidden
+	}
+	if doc.Status != StatusReady {
+		return nil, ErrNotReady
+	}
+
+	embeddings, err := s.embedder.Embed(ctx, []string{req.Question})
+	if err != nil {
+		return nil, fmt.Errorf("embed question: %w", err)
+	}
+
+	chunks, err := s.repo.FindSimilarChunks(ctx, docID, embeddings[0], 5)
+	if err != nil {
+		return nil, fmt.Errorf("find similar chunks: %w", err)
+	}
+
+	if len(chunks) == 0 {
+		return &QueryResponse{
+			Question: req.Question,
+			Answer:   "No relevant content found in this document.",
+		}, nil
+	}
+
+	answer, err := s.completer.Complete(ctx, req.Question, chunks)
+	if err != nil {
+		return nil, fmt.Errorf("generate answer: %w", err)
+	}
+
+	return &QueryResponse{
+		Question: req.Question,
+		Answer:   answer,
+	}, nil
 }
 
 func storageKey(userID, fileID uuid.UUID, ext string) string {

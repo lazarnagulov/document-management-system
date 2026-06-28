@@ -12,6 +12,7 @@ import (
 	"bitbucket.org/HyperEther/document-management-system/internal/document"
 	"bitbucket.org/HyperEther/document-management-system/internal/extractor"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/chunker"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/completer"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/db"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/embedder"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/middleware"
@@ -53,6 +54,10 @@ func setupDependencies(ctx context.Context, cfg *config.AppConfig, log *zap.Logg
 	log.Info("Successfully connected to the database!")
 
 	q := queue.NewMemoryQueue(100)
+	chunker := chunker.Default()
+	openaiEmbedder := embedder.New(cfg.OpenAI.APIKey)
+	extractorFactory := extractor.NewFactory(cfg.Extractor)
+	completer := completer.New(cfg.OpenAI.APIKey)
 
 	authMw := middleware.Authenticate(cfg.Auth)
 
@@ -61,14 +66,11 @@ func setupDependencies(ctx context.Context, cfg *config.AppConfig, log *zap.Logg
 	authHandler := auth.NewHandler(authService, authMw)
 
 	docRepo := document.NewRepository(database)
-	docService := document.NewService(docRepo, minio, q)
+	docService := document.NewService(docRepo, minio, q, openaiEmbedder, completer)
 	docHandler := document.NewHandler(docService, authMw)
 
 	r.RegisterRoutes(authHandler, docHandler)
 
-	chunker := chunker.Default()
-	openaiEmbedder := embedder.New(cfg.OpenAI.APIKey)
-	extractorFactory := extractor.NewFactory(cfg.Extractor)
 	processor := processing.NewProcessor(docRepo, minio, extractorFactory, chunker, openaiEmbedder, log)
 	worker := processing.NewWorker(q, processor)
 	worker.Start(ctx)

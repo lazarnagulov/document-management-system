@@ -9,6 +9,7 @@ import (
 	"bitbucket.org/HyperEther/document-management-system/internal/document"
 	"bitbucket.org/HyperEther/document-management-system/internal/extractor"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/chunker"
+	"bitbucket.org/HyperEther/document-management-system/internal/platform/completer"
 	"bitbucket.org/HyperEther/document-management-system/internal/platform/pagination"
 	"github.com/google/uuid"
 )
@@ -47,6 +48,9 @@ func (m *mockRepo) ListByUserID(ctx context.Context, userID uuid.UUID, page pagi
 	return nil, nil
 }
 func (m *mockRepo) CountByUserID(ctx context.Context, userID uuid.UUID) (int, error) { return 0, nil }
+func (r *mockRepo) FindSimilarChunks(ctx context.Context, documentID uuid.UUID, embedding []float32, limit int) ([]*completer.SimilarChunk, error) {
+	return nil, nil
+}
 
 type mockStorage struct {
 	downloadFn func(ctx context.Context, key string) (io.ReadCloser, error)

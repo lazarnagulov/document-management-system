@@ -54,6 +54,15 @@ type Response struct {
 	UpdatedAt   time.Time      `json:"updated_at"`
 }
 
+type QueryRequest struct {
+	Question string `json:"question" binding:"required"`
+}
+
+type QueryResponse struct {
+	Answer   string `json:"answer"`
+	Question string `json:"question"`
+}
+
 func ToResponse(d *Document) *Response {
 	return &Response{
 		ID:          d.ID,
