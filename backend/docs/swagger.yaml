@@ -1,0 +1,425 @@
+basePath: /api/v1
+definitions:
+  bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse:
+    properties:
+      code:
+        type: integer
+      error:
+        type: string
+    type: object
+  internal_auth.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  internal_auth.RegisterRequest:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 8
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  internal_auth.UserResponse:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+    type: object
+  internal_document.DocumentStatus:
+    enum:
+    - UPLOADED
+    - PROCESSING
+    - READY
+    - FAILED
+    type: string
+    x-enum-varnames:
+    - StatusUploaded
+    - StatusProcessing
+    - StatusReady
+    - StatusFailed
+  internal_document.Response:
+    properties:
+      content_type:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      size:
+        type: integer
+      status:
+        $ref: '#/definitions/internal_document.DocumentStatus'
+      updated_at:
+        type: string
+    type: object
+  internal_document.UpdateRequest:
+    properties:
+      name:
+        type: string
+    required:
+    - name
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: DMS REST API
+  title: Document Management System API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates a user with email and password. On success, sets
+        HttpOnly cookies containing the access and refresh tokens.
+      parameters:
+      - description: Login credentials
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Invalid request body
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "401":
+          description: Invalid credentials
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+      security:
+      - RefreshTokenCookie: []
+      summary: Log in a user
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Clears the access and refresh token cookies, effectively logging
+        the user out.
+      responses:
+        "204":
+          description: No Content
+      summary: Log out the current user
+      tags:
+      - auth
+  /auth/me:
+    get:
+      description: Returns the profile of the currently authenticated user, identified
+        via the access token cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_auth.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+      security:
+      - AccessTokenCookie: []
+      summary: Get current user
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      description: Reads the refresh token from the HttpOnly cookie, validates it,
+        and issues a new access/refresh token pair via cookies. Clears cookies on
+        failure.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Missing or invalid refresh token
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+      summary: Refresh authentication tokens
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user account. Returns the created user profile on
+        success.
+      parameters:
+      - description: Registration details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_auth.UserResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "409":
+          description: Email already in use
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+      summary: Register a new user
+      tags:
+      - auth
+  /documents/:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Uploads a new document (PDF, TXT, or DOCX). Max file size is 50MB.
+        The document is queued for processing after upload; poll the
+      parameters:
+      - description: Document file (pdf, txt, docx)
+        in: formData
+        name: document
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_document.Response'
+        "400":
+          description: Missing or invalid file
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "413":
+          description: File exceeds 50MB limit
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "422":
+          description: Unsupported file type
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+      security:
+      - AccessTokenCookie: []
+      summary: Upload a document
+      tags:
+      - documents
+  /documents/{id}:
+    delete:
+      description: Permanently deletes a document and its stored file. This action
+        is irreversible.
+      parameters:
+      - description: Document UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "404":
+          description: Document not found
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+      security:
+      - AccessTokenCookie: []
+      summary: Delete a document
+      tags:
+      - documents
+    get:
+      description: Returns metadata for a single document owned by the authenticated
+        user.
+      parameters:
+      - description: Document UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_document.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "404":
+          description: Document not found
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+      security:
+      - AccessTokenCookie: []
+      summary: Get a document
+      tags:
+      - documents
+    patch:
+      consumes:
+      - application/json
+      description: Updates the name of an existing document owned by the authenticated
+        user.
+      parameters:
+      - description: Document UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_document.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_document.Response'
+        "400":
+          description: Invalid request body
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "404":
+          description: Document not found
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+      security:
+      - AccessTokenCookie: []
+      summary: Rename a document
+      tags:
+      - documents
+  /documents/{id}/download:
+    get:
+      description: Streams the original file as an attachment. The Content-Disposition
+        header will contain the original filename.
+      parameters:
+      - description: Document UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "404":
+          description: Document not found
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/bitbucket_org_HyperEther_document-management-system_internal_platform_httputil.ErrorResponse'
+      security:
+      - AccessTokenCookie: []
+      summary: Download a document
+      tags:
+      - documents
+securityDefinitions:
+  AccessTokenCookie:
+    description: Short-lived JWT access token. Set automatically by /auth/login and
+      /auth/refresh.
+    in: cookie
+    name: access_token
+    type: apiKey
+  RefreshTokenCookie:
+    description: Long-lived JWT refresh token. HttpOnly, scoped to /api/v1/auth/refresh
+      only.
+    in: cookie
+    name: refresh_token
+    type: apiKey
+swagger: "2.0"

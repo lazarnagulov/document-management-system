@@ -35,7 +35,7 @@ func setupDependencies(ctx context.Context, cfg *config.AppConfig, log *zap.Logg
 		return nil, errors.New("OPENAI_API_KEY must be set")
 	}
 
-	r := NewRouter("production")
+	r := NewRouter(cfg.Env)
 
 	minio, err := storage.NewMinioStorage(cfg.Minio)
 	if err != nil {

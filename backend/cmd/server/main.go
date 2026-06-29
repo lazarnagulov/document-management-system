@@ -1,3 +1,18 @@
+// @title           Document Management System API
+// @version         1.0
+// @description     DMS REST API
+// @host            localhost:8080
+// @BasePath        /api/v1
+
+// @securityDefinitions.apikey  AccessTokenCookie
+// @in                          cookie
+// @name                        access_token
+// @description                 Short-lived JWT access token. Set automatically by /auth/login and /auth/refresh.
+
+// @securityDefinitions.apikey  RefreshTokenCookie
+// @in                          cookie
+// @name                        refresh_token
+// @description                 Long-lived JWT refresh token. HttpOnly, scoped to /api/v1/auth/refresh only.
 package main
 
 import (
