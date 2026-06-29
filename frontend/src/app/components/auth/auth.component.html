@@ -1,18 +1,25 @@
 <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
   <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lg">
 
-    <div>
-      <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
-        {{ isLoginMode ? 'Sign in to your account' : 'Create a new account' }}
+    <div class="flex flex-col items-center">
+      <img
+        ngSrc="logo.png"
+        width="128"
+        height="128"
+        alt="DMS Logo"
+        class="w-24 h-24 sm:w-32 sm:h-32"
+      />
+      <h2 class="text-center text-3xl font-extrabold text-gray-900">
+        {{ isLoginMode() ? 'Sign in to your account' : 'Create a new account' }}
       </h2>
       <p class="mt-2 text-center text-sm text-gray-600">
         Document Management System
       </p>
     </div>
-
-    <form class="mt-8 space-y-6" (submit)="onSubmit($event)">
+    <form class="mt-8 space-y-6" [formGroup]="form" (ngSubmit)="onSubmit()">
 
       <div class="space-y-5">
+
         <div>
           <label for="email" class="block text-sm font-medium text-gray-700">
             Email address
@@ -20,21 +27,18 @@
           <div class="mt-1">
             <input
               id="email"
-              name="email"
               type="email"
-              required
+              formControlName="email"
               placeholder="you@example.com"
-              [class.border-red-300]="emailError"
-              [class.text-red-900]="emailError"
-              [class.focus:ring-red-500]="emailError"
-              [class.focus:border-red-500]="emailError"
-              class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors duration-200">
+              class="appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm transition-colors duration-200"
+              [ngClass]="email.invalid && email.touched
+                ? 'border-red-300 text-red-900 focus:ring-red-500 focus:border-red-500'
+                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'">
           </div>
-
-          @if (emailError) {
-            <p class="mt-2 text-sm text-red-600" id="email-error">
-              {{ emailError }}
-            </p>
+          @if (email.touched && email.hasError('required')) {
+            <p class="mt-2 text-sm text-red-600">Email is required.</p>
+          } @else if (email.touched && email.hasError('email')) {
+            <p class="mt-2 text-sm text-red-600">Please enter a valid email address.</p>
           }
         </div>
 
@@ -45,48 +49,51 @@
           <div class="mt-1">
             <input
               id="password"
-              name="password"
               type="password"
-              required
+              formControlName="password"
               placeholder="••••••••"
-              [class.border-red-300]="passwordError"
-              [class.text-red-900]="passwordError"
-              [class.focus:ring-red-500]="passwordError"
-              [class.focus:border-red-500]="passwordError"
-              class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors duration-200">
+              class="appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm transition-colors duration-200"
+              [ngClass]="password.invalid && password.touched
+                ? 'border-red-300 text-red-900 focus:ring-red-500 focus:border-red-500'
+                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'">
           </div>
-
-          @if (passwordError) {
-            <p class="mt-2 text-sm text-red-600" id="password-error">
-              {{ passwordError }}
-            </p>
+          @if (password.touched && password.hasError('required')) {
+            <p class="mt-2 text-sm text-red-600">Password is required.</p>
+          } @else if (password.touched && password.hasError('minlength')) {
+            <p class="mt-2 text-sm text-red-600">Password must be at least 8 characters.</p>
           }
         </div>
+
       </div>
 
-      @if (generalError) {
-        <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-          <div class="flex">
-            <div class="ml-3">
-              <p class="text-sm text-red-700">
-                {{ generalError }}
-              </p>
-            </div>
-          </div>
+      @if (generalError()) {
+        <div class="bg-red-50 border-l-4 border-red-400 p-4">
+          <p class="text-sm text-red-700">{{ generalError() }}</p>
         </div>
       }
 
-      <div>
-        <button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200">
-          {{ isLoginMode ? 'Sign In' : 'Register' }}
-        </button>
-      </div>
+      <button
+        type="submit"
+        [disabled]="isLoading()"
+        class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed">
+        @if (isLoading()) {
+          <svg class="h-5 w-5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+        } @else {
+          {{ isLoginMode() ? 'Sign In' : 'Register' }}
+        }
+      </button>
+
     </form>
 
     <div class="text-center mt-4">
-      <button (click)="toggleMode()" type="button" class="text-sm text-blue-600 hover:text-blue-500 font-medium cursor-pointer focus:outline-none">
-        {{ isLoginMode ? "Don't have an account? Register" : 'Already have an account? Sign in' }}
+      <button (click)="toggleMode()" type="button"
+              class="text-sm text-blue-600 hover:text-blue-500 font-medium cursor-pointer focus:outline-none">
+        {{ isLoginMode() ? "Don't have an account? Register" : 'Already have an account? Sign in' }}
       </button>
     </div>
+
   </div>
 </div>

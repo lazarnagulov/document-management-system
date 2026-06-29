@@ -1,50 +1,81 @@
-import { Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, inject, signal } from '@angular/core';
+import {CommonModule, NgOptimizedImage} from '@angular/common';
+import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
+import { HttpErrorResponse } from '@angular/common/http';
+import {AuthRequest} from '../../models/auth.model';
 
 @Component({
   selector: 'app-auth',
   standalone: true,
-  imports: [CommonModule],
-  templateUrl: "auth.component.html"
+  imports: [CommonModule, ReactiveFormsModule, NgOptimizedImage],
+  templateUrl: './auth.component.html'
 })
 export class AuthComponent {
-  isLoginMode = true;
+  private readonly fb          = inject(FormBuilder);
   private readonly authService = inject(AuthService);
 
-  emailError: string | null = null;
-  passwordError: string | null = null;
-  generalError: string | null = null;
+  isLoginMode = signal(true);
+  isLoading   = signal(false);
+  generalError = signal<string | null>(null);
 
-  toggleMode() {
-    this.isLoginMode = !this.isLoginMode;
-    this.clearErrors();
+  form = this.fb.group({
+    email:    ['', [Validators.required, Validators.email]],
+    password: ['', [Validators.required, Validators.minLength(8)]],
+  });
+
+  get email()    { return this.form.controls.email; }
+  get password() { return this.form.controls.password; }
+
+  toggleMode(): void {
+    this.isLoginMode.update(v => !v);
+    this.generalError.set(null);
+    this.form.reset();
   }
 
-  clearErrors() {
-    this.emailError = null;
-    this.passwordError = null;
-    this.generalError = null;
-  }
-
-  onSubmit(event: Event) {
-    event.preventDefault();
-    this.clearErrors();
-
-    // -------------------------------------------------------------
-    // TODO: Connect to backend here.
-    // This is a mockup to show how the errors will render visually.
-    // -------------------------------------------------------------
-    const mockBackendFails = false; // Change to true to test the UI error states
-
-    if (mockBackendFails) {
-      this.emailError = "Please enter a valid email address.";
-      this.passwordError = "Password must be at least 8 characters long.";
-      this.generalError = "Authentication failed. Please check your credentials.";
+  onSubmit(): void {
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
       return;
     }
 
-    // Success path
-    this.authService.login();
+    this.generalError.set(null);
+    this.isLoading.set(true);
+
+    const req = this.form.getRawValue() as AuthRequest;
+
+    if (this.isLoginMode()) {
+      this.authService.login(req).subscribe({
+        error: (err: HttpErrorResponse) => {
+          this.isLoading.set(false);
+          this.generalError.set(
+            err.status === 401
+              ? 'Invalid email or password.'
+              : 'Something went wrong. Please try again.'
+          );
+        },
+        complete: () => this.isLoading.set(false),
+      });
+    } else {
+      this.authService.register(req).subscribe({
+        next: () => {
+          this.authService.login(req).subscribe({
+            error: () => {
+              this.isLoading.set(false);
+              this.isLoginMode.set(true);
+            },
+            complete: () => this.isLoading.set(false),
+          });
+        },
+        error: (err: HttpErrorResponse) => {
+          this.isLoading.set(false);
+          this.generalError.set(
+            err.status === 409
+              ? 'An account with this email already exists.'
+              : 'Registration failed. Please try again.'
+          );
+        },
+      });
+    }
   }
 }
