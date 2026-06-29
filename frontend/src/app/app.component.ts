@@ -1,12 +1,19 @@
-import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import {Component, inject, OnInit} from '@angular/core';
+import { HomeComponent } from './components/home/home.component';
+import {AuthService} from './core/services/auth.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
-  templateUrl: './app.component.html',
-  styleUrl: './app.component.css'
+  standalone: true,
+  imports: [HomeComponent],
+  template: `<app-home></app-home>`
 })
-export class AppComponent {
+export class AppComponent implements OnInit {
   title = 'document-management-system';
+
+  private readonly authService = inject(AuthService);
+
+  ngOnInit(): void {
+    this.authService.checkSession().subscribe();
+  }
 }

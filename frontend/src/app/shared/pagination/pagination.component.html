@@ -1,0 +1,42 @@
+@if (totalPages > 1) {
+  <div class="flex items-center justify-between pt-3 border-t border-gray-100 mt-3">
+
+    <p class="text-xs text-gray-500">
+      Page {{ page }} of {{ totalPages }}
+      <span class="text-gray-400">({{ totalElements }} total)</span>
+    </p>
+
+    <div class="flex items-center gap-1">
+
+      <button (click)="go(page - 1)"
+              [disabled]="!hasPrev"
+              class="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </button>
+
+      @for (p of pages; track p; let i = $index) {
+        @if (isEllipsisBefore(i)) {
+          <span class="px-1 text-gray-400 text-xs">…</span>
+        }
+        <button (click)="go(p)"
+                class="min-w-[28px] h-7 rounded-md text-xs font-medium transition"
+                [ngClass]="p === page
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'">
+          {{ p }}
+        </button>
+      }
+
+      <button (click)="go(page + 1)"
+              [disabled]="!hasNext"
+              class="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+
+    </div>
+  </div>
+}
