@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import {Component, inject, signal, computed, OnInit, OnDestroy} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
@@ -9,6 +9,7 @@ import { PaginationComponent, PageEvent } from '../../shared/pagination/paginati
 import { DocumentCardComponent } from './document-card/document-card.component';
 import { ChatMessage, DocumentResponse } from '../../models/document.model';
 import { PAGE_SIZE, PageResponse } from '../../models/pagination.model';
+import {PollingService} from '../../core/services/polling.service';
 
 type ModalMode = 'upload' | 'rename' | 'delete' | 'detail' | null;
 
@@ -25,9 +26,10 @@ type ModalMode = 'upload' | 'rename' | 'delete' | 'detail' | null;
   ],
   templateUrl: './dashboard.component.html'
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   private readonly authService     = inject(AuthService);
   private readonly documentService = inject(DocumentService);
+  private readonly pollingService  = inject(PollingService);
 
   pagedResponse = signal<PageResponse<DocumentResponse>>({
     content: [], page: 1, size: PAGE_SIZE, totalElements: 0, totalPages: 0,
@@ -55,6 +57,10 @@ export class DashboardComponent implements OnInit {
     this.loadPage(1);
   }
 
+  ngOnDestroy() {
+    this.pollingService.stop();
+  }
+
   loadPage(page: number) {
     this.isListLoading.set(true);
     this.listError.set(null);
@@ -64,6 +70,7 @@ export class DashboardComponent implements OnInit {
         this.pagedResponse.set(response);
         this.currentPage.set(response.page);
         this.isListLoading.set(false);
+        this.pollingService.watch(this.pagedResponse, this.selectedDocument);
       },
       error: () => {
         this.listError.set('Failed to load documents. Please try again.');
@@ -71,7 +78,6 @@ export class DashboardComponent implements OnInit {
       },
     });
   }
-
   onPageChange(event: PageEvent) {
     this.loadPage(event.page);
   }
