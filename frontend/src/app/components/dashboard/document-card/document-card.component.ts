@@ -16,6 +16,7 @@ export class DocumentCardComponent {
   @Output() renameDoc    = new EventEmitter<DocumentResponse>();
   @Output() deleteDoc    = new EventEmitter<DocumentResponse>();
   @Output() downloadDoc  = new EventEmitter<DocumentResponse>();
+  @Output() detailDoc    = new EventEmitter<DocumentResponse>();
 
   get canSelect(): boolean {
     return this.document.status === 'READY';
@@ -28,4 +29,5 @@ export class DocumentCardComponent {
   onRename(e: Event)   { e.stopPropagation(); this.renameDoc.emit(this.document); }
   onDelete(e: Event)   { e.stopPropagation(); this.deleteDoc.emit(this.document); }
   onDownload(e: Event) { e.stopPropagation(); this.downloadDoc.emit(this.document); }
+  onDetail(e: Event) { e.stopPropagation(); this.detailDoc.emit(this.document); }
 }

@@ -6,4 +6,4 @@ export interface PageResponse<T> {
   totalPages: number;
 }
 
-export const PAGE_SIZE = 8;
+export const PAGE_SIZE = 5;

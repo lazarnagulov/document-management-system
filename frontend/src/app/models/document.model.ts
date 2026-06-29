@@ -15,3 +15,16 @@ export interface ChatMessage {
   text: string;
   loading?: boolean;
 }
+
+export interface UpdateDocumentRequest {
+  name: string;
+}
+
+export interface QueryRequest {
+  question: string;
+}
+
+export interface QueryResponse {
+  question: string;
+  answer: string;
+}

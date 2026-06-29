@@ -24,19 +24,44 @@
         <p class="text-xs text-gray-500 mb-4">Select a Ready document to chat.</p>
 
         <div class="space-y-3 overflow-y-auto flex-1 pr-1">
-          @for (doc of pagedResponse().content; track doc.id) {
-            <app-document-card
-              [document]="doc"
-              [isSelected]="selectedDocument()?.id === doc.id"
-              (selectDoc)="selectDocument($event)"
-              (renameDoc)="openRenameModal($event)"
-              (deleteDoc)="openDeleteModal($event)"
-              (downloadDoc)="downloadDocument($event)"/>
-          } @empty {
-            <div class="text-sm text-gray-500 text-center py-6 border-2 border-dashed border-gray-100 rounded-lg">
-              No documents yet. Upload one to get started.
+
+          @if (isListLoading()) {
+            @for (_ of [1,2,3]; track $index) {
+              <div class="p-4 rounded-xl border border-gray-100 bg-white animate-pulse">
+                <div class="flex items-center gap-3">
+                  <div class="h-6 w-6 bg-gray-200 rounded-md flex-shrink-0"></div>
+                  <div class="flex-1 space-y-2">
+                    <div class="h-3 bg-gray-200 rounded w-3/4"></div>
+                    <div class="h-2 bg-gray-100 rounded w-1/3"></div>
+                  </div>
+                </div>
+              </div>
+            }
+          } @else if (listError()) {
+            <div class="text-sm text-red-600 text-center py-6 border-2 border-dashed border-red-100 rounded-lg px-4">
+              <p class="font-medium mb-1">Could not load documents</p>
+              <button (click)="loadPage(currentPage())"
+                      class="text-xs text-red-500 underline hover:text-red-700">
+                Try again
+              </button>
             </div>
+          } @else {
+            @for (doc of pagedResponse().content; track doc.id) {
+              <app-document-card
+                [document]="doc"
+                [isSelected]="selectedDocument()?.id === doc.id"
+                (selectDoc)="selectDocument($event)"
+                (renameDoc)="openRenameModal($event)"
+                (detailDoc)="openDetailModal($event)"
+                (deleteDoc)="openDeleteModal($event)"
+                (downloadDoc)="downloadDocument($event)"/>
+            } @empty {
+              <div class="text-sm text-gray-500 text-center py-6 border-2 border-dashed border-gray-100 rounded-lg">
+                No documents yet. Upload one to get started.
+              </div>
+            }
           }
+
         </div>
 
         <app-pagination
@@ -274,5 +299,78 @@
       </button>
     </div>
 
+  </app-modal-shell>
+}
+
+@if (modalMode() === 'detail') {
+  <app-modal-shell title="Document Details" (closeClick)="closeModal()">
+    @if (targetDocument(); as doc) {
+
+      <div class="flex items-center gap-3 p-4 bg-gray-50 rounded-xl mb-5">
+        <svg class="h-8 w-8 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <span class="text-sm font-semibold text-gray-800 break-all">{{ doc.name }}</span>
+      </div>
+
+      <dl class="space-y-3 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-gray-500">Status</dt>
+          <dd>
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium"
+                  [ngClass]="{
+                    'bg-green-100 text-green-700':  doc.status === 'READY',
+                    'bg-yellow-100 text-yellow-700': doc.status === 'PROCESSING',
+                    'bg-gray-100 text-gray-600':    doc.status === 'UPLOADED',
+                    'bg-red-100 text-red-700':      doc.status === 'FAILED'
+                  }">
+              @switch (doc.status) {
+                @case ('READY')      { Ready }
+                @case ('PROCESSING') { Processing }
+                @case ('UPLOADED')   { Pending }
+                @case ('FAILED')     { Failed }
+              }
+            </span>
+          </dd>
+        </div>
+        <div class="flex justify-between border-t border-gray-100 pt-3">
+          <dt class="text-gray-500">Type</dt>
+          <dd class="text-gray-800 font-medium">{{ doc.content_type }}</dd>
+        </div>
+        <div class="flex justify-between border-t border-gray-100 pt-3">
+          <dt class="text-gray-500">Size</dt>
+          <dd class="text-gray-800 font-medium">{{ formatSize(doc.size) }}</dd>
+        </div>
+        <div class="flex justify-between border-t border-gray-100 pt-3">
+          <dt class="text-gray-500">Uploaded</dt>
+          <dd class="text-gray-800 font-medium">{{ doc.created_at | date:'mediumDate' }}</dd>
+        </div>
+        <div class="flex justify-between border-t border-gray-100 pt-3">
+          <dt class="text-gray-500">Last updated</dt>
+          <dd class="text-gray-800 font-medium">{{ doc.updated_at | date:'mediumDate' }}</dd>
+        </div>
+      </dl>
+
+      <div class="flex gap-2 mt-6">
+        <button (click)="downloadDocument(doc); closeModal()"
+                class="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2.5 text-sm font-medium hover:bg-gray-50 transition flex items-center justify-center gap-2">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Download
+        </button>
+        <button (click)="openRenameModal(doc)"
+                class="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2.5 text-sm font-medium hover:bg-gray-50 transition">
+          Rename
+        </button>
+        <button (click)="openDeleteModal(doc)"
+                class="flex-1 border border-red-200 text-red-600 rounded-lg py-2.5 text-sm font-medium hover:bg-red-50 transition">
+          Delete
+        </button>
+      </div>
+
+    }
   </app-modal-shell>
 }
